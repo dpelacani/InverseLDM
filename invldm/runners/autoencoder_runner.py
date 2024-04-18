@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+import ray
 
 from . import BaseRunner
 from ..models.utils import (_instance_autoencoder_model, _instance_optimiser,
@@ -13,11 +13,11 @@ class AutoencoderRunner(BaseRunner):
         super().__init__(**kwargs)
 
         self.model = _instance_autoencoder_model(self.args, self.device)
-        self.model = data_parallel_wrapper(module=self.model,
-                                           device=self.device,
-                                           device_ids=self.gpu_ids)
-        
-        self.device = self.model.module.device
+        # self.model = data_parallel_wrapper(module=self.model,
+        #                                    device=self.device,
+        #                                    device_ids=self.gpu_ids)
+        # self.device = self.model.module.device
+        # self.model = ray.train.torch.prepare_model(self.model)
 
         # If not in sampling only mode, instantiate optimising objects
         if not self.args.sampling_only: 
@@ -29,14 +29,16 @@ class AutoencoderRunner(BaseRunner):
             # Instantiate optimising objects for adversarial loss
             if self.args.model.adversarial_loss:
                 self.d_model = _instance_discriminator_model(self.args, self.device)
-                self.d_model = data_parallel_wrapper(module=self.d_model,
-                                                    device=self.device,
-                                                    device_ids=self.gpu_ids)
+                # self.d_model = data_parallel_wrapper(module=self.d_model,
+                #                                     device=self.device,
+                #                                     device_ids=self.gpu_ids)
+                # self.d_model = ray.train.torch.prepare_model(self.d_model)
                 self.d_optimiser = _instance_optimiser(self.args, self.d_model)
                 self.d_lr_scheduler = _instance_lr_scheduler(self.args, self.d_optimiser)
                 self.d_loss_fn = _instance_discriminator_loss_fn(self.args)
 
     def train_step(self, input, **kwargs):
+        torch.autograd.set_detect_anomaly(True)
         # Get condition from kwargs
         cond = kwargs.pop("condition", None)
 

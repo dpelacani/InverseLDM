@@ -22,7 +22,7 @@ def _instance_diffusion_model(autoencoder, args, device="cpu"):
 def _instance_discriminator_model(args, device="cpu"):
     return NLayerDiscriminator(args.model.out_channels,
                                args.params.disc_feature_channels,
-                               args.params.disc_n_layers).to(device)
+                               args.params.disc_n_layers)#.to(device)
 
 
 def _instance_optimiser(args, model):

@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import sys
 import logging
+import multiprocessing
 
 from .utils import dict2namespace, namespcae_summary_ticket
 from ..loggers.utils import _instance_logger
@@ -166,6 +167,17 @@ def parse_args():
             used"
     )
     parser.add_argument(
+        "--ray_num_workers",
+        type=int,
+        default=4,
+        help="Number of process workers used for ray. If `device` is set \
+            to `cpu` this number refers to number of processors. Conversely, \
+            if `device` is set to `cuda` this number refers to number of gpus. \
+            If `device` is set to `cuda` and `gpu_ids` is passed, this value \
+            is overridden by the length of `gpu_ids` list. \
+            If None, max number of processors or gpus will be used."
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -191,11 +203,12 @@ def parse_args():
         default="info",
         help="Verbose level: info | debug | warning | critical",
     )
+
     run_args = parser.parse_args()
-    run_args.exp_folder = os.path.join(run_args.logdir,
-                                       run_args.name)
-    run_args.log_folder = os.path.join(run_args.exp_folder,
-                                       "logs")
+    run_args.exp_folder = os.path.abspath(os.path.join(run_args.logdir,
+                                       run_args.name))
+    run_args.log_folder = os.path.abspath(os.path.join(run_args.exp_folder,
+                                       "logs"))
 
     # read config, add run args to namespace
     args = parse_config(run_args.config)
@@ -255,13 +268,22 @@ def check_devices(args):
         args.run.device = new_device
 
     gpu_ids = []
-    if args.run.gpu_ids:
+    if args.run.gpu_ids and "cuda" in args.run.device:
         for id in args.run.gpu_ids:
             try:
                 gpu_ids.append(int(id))
             except ValueError:
-                pass
-            args.run.gpu_ids = gpu_ids
+                pass        
+
+        # Make only these gpus visible, adjust 
+        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, gpu_ids)) 
+        args.run.ray_num_workers = len(gpu_ids)
+    args.run.gpu_ids = gpu_ids
+
+    # Adjust ray_num_workers
+    if args.run.ray_num_workers is None:
+        args.run.ray_num_workers = multiprocessing.cpu_count() if args.run.device == "cpu" else torch.cuda.device_count()
+
     return args
 
 

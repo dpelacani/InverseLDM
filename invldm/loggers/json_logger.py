@@ -23,7 +23,6 @@ class JSONLogger(BaseLogger):
         for key, val in self.scalars.items():
             json_dic.update({key: val})
         
-        # print(json_dic)
         with open(self.log_file, 'w') as f:
             json.dump(json_dic, f)
         

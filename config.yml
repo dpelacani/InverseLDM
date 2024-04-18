@@ -10,8 +10,8 @@ data:
     to_tensor: false
     normalise: false
     condition:
-        mode: stack-latent
-        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_latent/data_03"    
+        mode: stack-pca30x30
+        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_pca/data"    
         resize: null
         scale: [0., 1.]
         clip_outliers: null
@@ -19,7 +19,7 @@ data:
         normalise: false
 
 logging:
-    tool: tensorboard
+    tool: JSON
 
 autoencoder:
     model:
@@ -34,7 +34,7 @@ autoencoder:
         div_loss: kl
         perceptual_loss: lpips
         adversarial_loss: true
-        # checkpoint: "/home/dp4018/scripts/InverseLDM/exps/autoencoders/autoencoder_pinaya/logs/autoencoder/checkpoints/autoencoder_ckpt_epoch_300_step_15000.pth"
+        # checkpoint: "/home/dp4018/scripts/InverseLDM/exps/autoencoders/cond_vae_latent03_pinaya_02_lpips_gan_05/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth"
         condition:
             in_channels: 1
             feature_channels: 16
@@ -50,11 +50,10 @@ autoencoder:
         
     training:
         batch_size: 16
-        n_epochs: 300
+        n_epochs: 1 # 300
         save_recon_freq: 500
         ckpt_freq: 500
         ckpt_last_only: true
-        num_workers: 4
         sampling_freq: 0
 
     validation:
@@ -62,7 +61,6 @@ autoencoder:
         batch_size: 16
         freq: 50
         save_recon_freq: 500
-        num_workers: 4
 
     optim:
         weight_decay: 0.00
@@ -98,20 +96,18 @@ diffusion:
 
     training:
         batch_size: 8
-        n_epochs: 0 #200
+        n_epochs: 200
         ckpt_freq: 100
         ckpt_last_only: true
         sampling_freq: 500
         sampling_temperature: 0.5
-        sampling_skip_steps: 0
-        num_workers: 4 
+        sampling_skip_steps: 0 
 
     validation:
         split: 0.2
         batch_size: 8
         freq: 150
         sampling_freq: 500
-        num_workers: 4
         
     sampling:
         batch_size: 4

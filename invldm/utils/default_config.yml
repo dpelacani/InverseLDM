@@ -56,7 +56,6 @@ autoencoder:
         save_recon_freq: 100 
         ckpt_freq: 100
         ckpt_last_only: true
-        num_workers: 32
         sampling_freq: 0
 
     validation:
@@ -64,14 +63,12 @@ autoencoder:
         batch_size: 32
         freq: 10
         save_recon_freq: 100
-        num_workers: 32
 
     sampling:
         input_image_size: 64
         input_channels: 3
         batch_size: 32
         n_samples: 0
-        num_workers: 32
 
     optim:
         weight_decay: 0.000
@@ -114,16 +111,13 @@ diffusion:
         sampling_temperature: 0.5
         sampling_skip_steps: 0
         ckpt_freq: 100
-        ckpt_last_only: true
-        num_workers: 32 
+        ckpt_last_only: true 
 
     validation:
         split: 0.1
         batch_size: 32
         freq: 10
         sampling_freq: 50
-        num_workers: 4
-
     sampling:
         input_image_size: 64
         input_channels: 3
@@ -131,7 +125,6 @@ diffusion:
         temperature: 1.
         skip_steps: 0
         n_samples: 100
-        num_workers: 32
         output: last_only
 
     optim:

@@ -3,6 +3,7 @@ import time
 import fnmatch
 
 import torch
+import ray
 import numpy as np
 import logging
 import platform
@@ -68,7 +69,7 @@ class BaseRunner(ABC):
             "dataset": self.train_loader.dataset.dataset.__dict__,
             "device": self.device,
             "device_ids": self.model.device_ids,
-            "gpus": [torch.cuda.get_device_name(id) for id in self.model.device_ids],
+            "gpus": [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())] if "cuda" in self.device else [],
             "processor": platform.machine() + " " + platform.processor() + " " + platform.system(),
             "seed": self.run_args.seed,
         }
@@ -193,9 +194,9 @@ class BaseRunner(ABC):
 
         else:
             file_name = f"{self.args.name.lower()}_{mode}_{fig_type}_epoch_{self.epoch}_step_{self.steps}.png"
-            if fig_type in ["recon", "input"]:
+            if fig_type in ["recon", "input", "error"]:
                 path = os.path.join(self.args.recon_path, file_name)
-            elif fig_type in ["sample", "sample_input", "sample_recon"]:
+            elif fig_type in ["sample", "sample_input", "sample_recon", "sample_error"]:
                 path = os.path.join(self.args.samples_path, file_name)
             else:
                 path = os.path.join(self.args.log_path, file_name)
@@ -269,15 +270,21 @@ class BaseRunner(ABC):
         if not self.completed:
             try:
                 for epoch in range(start_epoch, self.args.training.n_epochs + 1):
+                    
+                    if ray.train.get_context().get_world_size() > 1:
+                        self.train_loader.sampler.set_epoch(epoch)
+
                     for i, batch in enumerate(self.train_loader):
 
                         # Unpack batch into input and condition (if returned) and send to device
                         if isinstance(batch, list):
                             input, condition = batch
-                            input, condition = input.float().to(self.device), condition.float().to(self.device)
+                            # input, condition = input.float().to(self.device), condition.float().to(self.device)
+                            input, condition = input.float(), condition.float()
                         else:
                             input, condition = batch, None
-                            input = input.float().to(self.device)
+                            # input = input.float().to(self.device)
+                            input = input.float()
 
                         # Train batch
                         output = self.train_step(input, condition=condition)
@@ -288,7 +295,7 @@ class BaseRunner(ABC):
                             raise KeyError(e)
 
                         # Log loss
-                        logging.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Training Loss: {loss.item()} {self.eta(start_time)}")
+                        print(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Training Loss: {loss.item()} {self.eta(start_time)}")
                         if logger:
                             logger.log_scalar(
                                 tag=f"{self.args.name.lower()}_training_loss",
@@ -321,6 +328,7 @@ class BaseRunner(ABC):
                                 recon = output["recon"]
                                 self.save_figure(input, "training", "input")
                                 self.save_figure(recon, "training", "recon")
+                                self.save_figure(input-recon, "training", "error", scale=False)
                                 if logger:
                                     logger.log_figure(
                                         tag=f"{self.args.name.lower()}_training_input",
@@ -330,6 +338,11 @@ class BaseRunner(ABC):
                                     logger.log_figure(
                                         tag=f"{self.args.name.lower()}_training_recon",
                                         fig=visualise_samples(recon, scale=True),
+                                        step=self.steps
+                                    )
+                                    logger.log_figure(
+                                        tag=f"{self.args.name.lower()}_training_error",
+                                        fig=visualise_samples(input-recon, scale=False),
                                         step=self.steps
                                     )
                         except (KeyError, AttributeError):
@@ -361,6 +374,7 @@ class BaseRunner(ABC):
                                 else:
                                     self.save_figure(input, "training", "sample_input")
                                     self.save_figure(sample, "training", "sample_recon")
+                                    self.save_figure(input - sample, "training", "sample_error", scale=False)
 
                                     if logger:
                                         logger.log_figure(
@@ -371,6 +385,11 @@ class BaseRunner(ABC):
                                         logger.log_figure(
                                             tag=f"{self.args.name.lower()}_training_sample_recon",
                                             fig=visualise_samples(sample, scale=True),
+                                            step=self.steps
+                                        )
+                                        logger.log_figure(
+                                            tag=f"{self.args.name.lower()}_training_sample_error",
+                                            fig=visualise_samples(input - sample, scale=False),
                                             step=self.steps
                                         )
 
@@ -400,20 +419,24 @@ class BaseRunner(ABC):
                                     # Unpack validation batch into input and condition (if returned) and send to device.
                                     if isinstance(val_batch, list):
                                         val_input, val_condition = val_batch
-                                        val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
+                                        # val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
+                                        val_input, val_condition = val_input.float(), val_condition.float()
                                     else:
                                         val_input, val_condition = val_batch, None
-                                        val_input = val_input.float().to(self.device)
+                                        # val_input = val_input.float().to(self.device)
+                                        val_input = val_input.float()
                                 
                                 # Restart iterator and get batch
                                 except StopIteration:
                                     valid_iterator = iter(self.valid_loader)  
                                     if isinstance(val_batch, list):
                                         val_input, val_condition = val_batch
-                                        val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
+                                        # val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
+                                        val_input, val_condition = val_input.float(), val_condition.float()
                                     else:
                                         val_input, val_condition = val_batch, None
-                                        val_input = val_input.float().to(self.device)
+                                        # val_input = val_input.float().to(self.device)
+                                        val_input = val_input.float()
 
                                 # Validate batch
                                 val_output = self.valid_step(val_input, condition=val_condition)
@@ -449,6 +472,7 @@ class BaseRunner(ABC):
                                         val_recon = val_output["recon"]
                                         self.save_figure(val_input, "validation", "input")
                                         self.save_figure(val_recon, "validation", "recon")
+                                        self.save_figure(val_input - val_recon, "validation", "error", scale=False)
                                         logger.log_figure(
                                             tag=f"{self.args.name.lower()}_valid_input",
                                             fig=visualise_samples(val_input, scale=True),
@@ -457,6 +481,11 @@ class BaseRunner(ABC):
                                         logger.log_figure(
                                             tag=f"{self.args.name.lower()}_valid_recon",
                                             fig=visualise_samples(val_recon, scale=True),
+                                            step=self.steps
+                                        )
+                                        logger.log_figure(
+                                            tag=f"{self.args.name.lower()}_valid_error",
+                                            fig=visualise_samples(val_input - val_recon, scale=False),
                                             step=self.steps
                                         )
                                     except KeyError:
@@ -472,6 +501,7 @@ class BaseRunner(ABC):
                                         
                                         self.save_figure(val_input, "validation", "sample_input")
                                         self.save_figure(val_sample, "validation", "sample_recon")
+                                        self.save_figure(val_input - val_sample, "validation", "sample_error", scale=False)
 
                                         if logger:
                                             logger.log_figure(
@@ -482,6 +512,11 @@ class BaseRunner(ABC):
                                             logger.log_figure(
                                                 tag=f"{self.args.name.lower()}_valid_sample_recon",
                                                 fig=visualise_samples(val_sample, scale=True),
+                                                step=self.steps
+                                            )
+                                            logger.log_figure(
+                                                tag=f"{self.args.name.lower()}_valid_sample_error",
+                                                fig=visualise_samples(val_input - val_sample, scale=False),
                                                 step=self.steps
                                             )
 
@@ -519,10 +554,12 @@ class BaseRunner(ABC):
                 # Unpack batch into input and condition (if returned) and send to device
                 if isinstance(batch, list):
                     input, condition = batch
-                    input, condition = input.float().to(self.device), condition.float().to(self.device)
+                    # input, condition = input.float().to(self.device), condition.float().to(self.device)
+                    input, condition = input.float(), condition.float()
                 else:
                     input, condition = batch, None
-                    input = input.float().to(self.device)
+                    # input = input.float().to(self.device)
+                    input = input.float()
 
                  # Validation step   
                 output = self.valid_step(input, condition=condition)
@@ -546,10 +583,12 @@ class BaseRunner(ABC):
                 # Unpack sampling batch into input and condition (if returned) and send to device.          
                 if isinstance(sample_batch, list):
                     input, condition = sample_batch
-                    input, condition = input.float().to(self.device), condition.float().to(self.device)
+                    # input, condition = input.float().to(self.device), condition.float().to(self.device)
+                    input, condition = input.float(), condition.float()
                 else:
                     input, condition = sample_batch, None
-                    input = input.float().to(self.device)
+                    # input = input.float().to(self.device)
+                    input = input.float()
 
                 sample, _ = self.sample_step(input, condition=condition)
                 self.save_figure(sample, "", "sample", save_tensor=True)

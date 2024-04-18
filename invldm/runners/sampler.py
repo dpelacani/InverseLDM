@@ -1,5 +1,6 @@
-import logging
 import torch
+import logging
+import ray.train.torch
 
 from .autoencoder_runner import AutoencoderRunner
 from .diffusion_runner import DiffusionRunner
@@ -30,9 +31,12 @@ class Sampler():
         self.autoencoder_sample_dataloader = _instance_dataloader(
             self.args.autoencoder.sampling, self.autoencoder_sampling_dataset
         )
+        self.autoencoder_sample_dataloader = ray.train.torch.prepare_data_loader(self.autoencoder_sample_dataloader)
+
         self.diffusion_sample_dataloader = _instance_dataloader(
             self.args.diffusion.sampling, self.diffusion_sampling_dataset
         )
+        self.diffusion_sample_dataloader = ray.train.torch.prepare_data_loader(self.diffusion_sample_dataloader)
 
         # Autoencoder runner, load pre-trained, eval mode
         assert args.autoencoder.sampling.sampling_only
