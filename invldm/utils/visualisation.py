@@ -10,6 +10,6 @@ def visualise_samples(x, scale=False):
         x = scale2range(x, [0, 1])
     fig = plt.figure()
     grid = make_grid(x).permute(1, 2, 0).cpu()
-    plt.colorbar()
     plt.imshow(grid)
+    plt.colorbar()
     return fig
