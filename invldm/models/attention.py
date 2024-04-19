@@ -163,7 +163,7 @@ class CrossAttention(nn.Module):
         # Final linear layer maps dk --> dm
         self.to_out = nn.Linear(d_attn, d_model)
 
-    def forward(self, x: torch.Tensor, cond: Optional[torch.Tensor] = None, flash: Optional[bool] = True):
+    def forward(self, x: torch.Tensor, cond: Optional[torch.Tensor] = None):
         """
         :param x: are the input embeddings of shape `[batch_size, height * width, d_model]`
         :param cond: is the conditional embeddings of shape `[batch_size, n_cond, d_cond]`
@@ -179,16 +179,23 @@ class CrossAttention(nn.Module):
         k = self.to_k(cond)
         v = self.to_v(cond)
 
-        # If flash attention for optimised speed and memory cast to float16 supported by Pytorch
-        if flash:
+        # Try to use flash attention for optimised speed and memory
+        try:
             with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
-                with torch.cuda.amp.autocast():
-                    logging.warn("Flash attention requires dtype float16. Casting to float16 and recasting attention to float32.")
-                    attn, _ = self.multihead_attention(q.half(), k.half(), v.half(), need_weights=False)
-            return self.to_out(attn.float())
-        else:
-            attn, _ = self.multihead_attention(q, k, v, need_weights=False)
-            return self.to_out(attn)
+                attn, _ = self.multihead_attention(q, k, v, need_weights=False)
+        except RuntimeError:
+            try:
+                # Cast to float16 supported by Pytorch
+                with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
+                    with torch.cuda.amp.autocast():
+                        logging.warn("Flash attention requires dtype float16. Casting to float16 and recasting attention to float32.")
+                        attn, _ = self.multihead_attention(q, k, v, need_weights=False)
+                        attn = attn.float()
+            except RuntimeError:
+                logging.warn("Unable to use flash attention, using standard attention.")
+                attn, _ = self.multihead_attention(q, k, v, need_weights=False)
+        
+        return self.to_out(attn)
 
 
 class FeedForward(nn.Module):
