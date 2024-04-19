@@ -62,7 +62,7 @@ class DiffusionWrapper(nn.Module):
             n_heads= args.model.num_attn_heads,
             tf_layers= args.model.num_transformer_layers,
             cond_in_channels = args.model.condition.in_channels,
-            d_cond=args.model.condition.feature_channels)#.to(device)
+            d_cond=args.model.condition.feature_channels)
 
         self.ldm = LatentDiffusion(
                  unet_model=self.unet,
@@ -70,15 +70,15 @@ class DiffusionWrapper(nn.Module):
                  latent_scaling_factor=args.params.latent_scaling_factor,
                  n_steps=args.params.num_diffusion_timesteps,
                  linear_start=args.params.beta_start,
-                 linear_end=args.params.beta_end)#.to(device)
+                 linear_end=args.params.beta_end)
         
         if args.params.sampler.lower() == "ddim":
             self.sampler = DDIMSampler(model=self.ldm,
                             n_steps=args.params.num_diffusion_timesteps,
                             ddim_discretize="uniform",
-                            ddim_eta=0.)#.to(device)
+                            ddim_eta=0.)
         elif args.params.sampler.lower() == "ddpm":
-            self.sampler = DDPMSampler(model=self.ldm)#.to(device)
+            self.sampler = DDPMSampler(model=self.ldm)
         else:
             raise NotImplementedError(f"{args.params.sampler} sampler not implemented.")
     

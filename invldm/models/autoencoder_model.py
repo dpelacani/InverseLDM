@@ -61,7 +61,7 @@ class AutoencoderWrapper(nn.Module):
             z_channels=args.model.z_channels,
             cond_in_channels=args.model.condition.in_channels,
             cond_feature_channels = args.model.condition.feature_channels,
-        )#.to(device)
+        )
 
     @property
     def device(self):
