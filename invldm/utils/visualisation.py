@@ -11,5 +11,4 @@ def visualise_samples(x, scale=False):
     fig = plt.figure()
     grid = make_grid(x).permute(1, 2, 0).cpu()
     plt.imshow(grid)
-    plt.colorbar()
     return fig
