@@ -13,11 +13,6 @@ class AutoencoderRunner(BaseRunner):
         super().__init__(**kwargs)
 
         self.model = _instance_autoencoder_model(self.args, self.device)
-        # self.model = data_parallel_wrapper(module=self.model,
-        #                                    device=self.device,
-        #                                    device_ids=self.gpu_ids)
-        # self.device = self.model.module.device
-        # self.model = ray.train.torch.prepare_model(self.model)
 
         # If not in sampling only mode, instantiate optimising objects
         if not self.args.sampling_only: 
@@ -28,17 +23,20 @@ class AutoencoderRunner(BaseRunner):
 
             # Instantiate optimising objects for adversarial loss
             if self.args.model.adversarial_loss:
-                self.d_model = _instance_discriminator_model(self.args, self.device)
-                # self.d_model = data_parallel_wrapper(module=self.d_model,
-                #                                     device=self.device,
-                #                                     device_ids=self.gpu_ids)
-                # self.d_model = ray.train.torch.prepare_model(self.d_model)
+
+                # Decide Normalisation Layer based on parallelisation support, prioritising batchnorm
+                norm_layer = torch.nn.BatchNorm2d
+                if "cuda" in self.run_args.device: 
+                    norm_layer = torch.nn.SyncBatchNorm
+                elif self.run_args.ray_num_workers > 1:
+                    norm_layer = torch.nn.InstanceNorm2d
+
+                self.d_model = _instance_discriminator_model(self.args, norm_layer, self.device)
                 self.d_optimiser = _instance_optimiser(self.args, self.d_model)
                 self.d_lr_scheduler = _instance_lr_scheduler(self.args, self.d_optimiser)
                 self.d_loss_fn = _instance_discriminator_loss_fn(self.args)
 
     def train_step(self, input, **kwargs):
-        torch.autograd.set_detect_anomaly(True)
         # Get condition from kwargs
         cond = kwargs.pop("condition", None)
 
@@ -106,23 +104,23 @@ class AutoencoderRunner(BaseRunner):
         return output
 
     def valid_step(self, input, **kwargs):
-        # Forward pass: recon and the statistical posterior
-        self.model.eval()
-        recon, mean, log_var = self.model(input)
+        with torch.no_grad():
+            # Forward pass: recon and the statistical posterior
+            recon, mean, log_var = self.model(input)
 
-        # Compute validation loss
-        loss = self.loss_fn(input, recon, mean, log_var)
+            # Compute validation loss
+            loss = self.loss_fn(input, recon, mean, log_var)
 
-        # Compute validation loss for discriminator
-        loss_d = torch.tensor(-1.)
-        if self.args.model.adversarial_loss:
-            self.d_model.eval()
-            # Get predictions
-            logits_true = self.d_model(input.contiguous())
-            logits_fake = self.d_model(recon.contiguous())
+            # Compute validation loss for discriminator
+            loss_d = torch.tensor(-1.)
+            if self.args.model.adversarial_loss:
+                with torch.no_grad():
+                    # Get predictions
+                    logits_true = self.d_model(input.contiguous())
+                    logits_fake = self.d_model(recon.contiguous())
 
-            # Compute loss
-            loss_d = 0.5 * (self.d_loss_fn(logits_fake, is_real=False) + self.d_loss_fn(logits_true, is_real=True))
+                    # Compute loss
+                    loss_d = 0.5 * (self.d_loss_fn(logits_fake, is_real=False) + self.d_loss_fn(logits_true, is_real=True))
 
         # Output dictionary
         output = {
@@ -135,10 +133,11 @@ class AutoencoderRunner(BaseRunner):
         return output
     
     def sample_step(self, input, **kwargs):
-        _, _ = self.model.module.model.encode(input)
-        z = self.model.module.model.sample()
+        with torch.no_grad():
+            _, _ = self.model.module.model.encode(input)
+            z = self.model.module.model.sample()
 
-        sample = self.model.module.model.decode(z)
+            sample = self.model.module.model.decode(z)
         return sample, z    
 
 

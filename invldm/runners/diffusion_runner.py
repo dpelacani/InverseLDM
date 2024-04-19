@@ -67,11 +67,12 @@ class DiffusionRunner(BaseRunner):
         # Get condition from kwargs
         cond = kwargs.pop("condition", None)
 
-        # Forward pass: predict model noise based on condition
-        noise, noise_pred = self.model(input, cond)
+        with torch.no_grad():
+            # Forward pass: predict model noise based on condition
+            noise, noise_pred = self.model(input, cond)
 
-        # Compute validation loss
-        loss = self.loss_fn(noise, noise_pred)
+            # Compute validation loss
+            loss = self.loss_fn(noise, noise_pred)
 
         # Output dictionary
         output = {
@@ -79,23 +80,23 @@ class DiffusionRunner(BaseRunner):
         }
         return output
 
-    @torch.no_grad()
     def sample_step(self, input, **kwargs):
         # Get sampling parameters from kwargs
         cond = kwargs.pop("condition", None)
 
-        # One autoencoder forward pass to get shape of latent space -- can be optimised!
-        z = self.model.module.ldm.autoencoder_encode(input, cond)
+        with torch.no_grad():
+            # One autoencoder forward pass to get shape of latent space -- can be optimised!
+            z = self.model.module.ldm.autoencoder_encode(input, cond)
 
-        # Sample latent space with diffusion model
-        z_sample = self.model.module.sampler.sample(
-            shape=z.shape,
-            cond=cond,
-            temperature=self.temperature,
-            skip_steps=self.skip_steps,
-            repeat_noise=False,
-        )
+            # Sample latent space with diffusion model
+            z_sample = self.model.module.sampler.sample(
+                shape=z.shape,
+                cond=cond,
+                temperature=self.temperature,
+                skip_steps=self.skip_steps,
+                repeat_noise=False,
+            )
 
-        # Decode to reconstruct data
-        sample = self.model.module.ldm.autoencoder_decode(z_sample, cond)
+            # Decode to reconstruct data
+            sample = self.model.module.ldm.autoencoder_decode(z_sample, cond)
         return sample, z

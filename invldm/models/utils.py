@@ -1,14 +1,15 @@
-import os
 import inspect
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import ray
+
 from ..utils.utils import scale2range
 
 from .discriminator import NLayerDiscriminator
 from .diffusion_model import DiffusionWrapper
-from .autoencoder_model import AutoencoderWrapper, GaussianDistribution
+from .autoencoder_model import AutoencoderWrapper
 from .losses import _divergence_fn, _perceptual_fn, _reconstruction_fn, _adversarial_fn
 
 
@@ -19,10 +20,12 @@ def _instance_autoencoder_model(args, device="cpu"):
 def _instance_diffusion_model(autoencoder, args, device="cpu"):
     return DiffusionWrapper(autoencoder, args, device)
 
-def _instance_discriminator_model(args, device="cpu"):
+
+def _instance_discriminator_model(args, norm_layer=nn.BatchNorm2d, device="cpu"):
     return NLayerDiscriminator(args.model.out_channels,
                                args.params.disc_feature_channels,
-                               args.params.disc_n_layers)#.to(device)
+                               args.params.disc_n_layers,
+                               norm_layer=norm_layer)
 
 
 def _instance_optimiser(args, model):
