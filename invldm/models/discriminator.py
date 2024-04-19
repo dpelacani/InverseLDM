@@ -45,5 +45,4 @@ class NLayerDiscriminator(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
-        """Standard forward."""
         return self.model(input)
