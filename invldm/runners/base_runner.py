@@ -68,9 +68,10 @@ class BaseRunner(ABC):
             "name": self.args.name,
             "dataset": self.train_loader.dataset.dataset.__dict__,
             "device": self.device,
-            "device_ids": self.model.device_ids,
+            "device_ids": self.model.device_ids if isinstance(self.model, torch.nn.parallel.distributed.DistributedDataParallel) else None,
             "gpus": [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())] if "cuda" in self.device else [],
             "processor": platform.machine() + " " + platform.processor() + " " + platform.system(),
+            "ray_num_workers": self.run_args.ray_num_workers,
             "seed": self.run_args.seed,
         }
         hparam_dict.update({"model": namespace2dict(self.args, flatten=True)})
