@@ -16,11 +16,6 @@ class DiffusionRunner(BaseRunner):
         self.model = _instance_diffusion_model(autoencoder,
                                                self.args,
                                                self.device)
-        # self.model = data_parallel_wrapper(module=self.model,
-        #                                    device=self.device,
-        #                                    device_ids=self.gpu_ids)
-        # self.device = self.model.module.device
-        # self.model = ray.train.torch.prepare_model(self.model)
 
         self.optimiser = _instance_optimiser(self.args, self.model)
         self.lr_scheduler = _instance_lr_scheduler(self.args, self.optimiser)
@@ -34,8 +29,6 @@ class DiffusionRunner(BaseRunner):
             self.skip_steps = int(self.args.training.sampling_skip_steps)
 
     def train_step(self, input, **kwargs):
-        print("*********************", ray.train.torch.get_device())
-
         # Dictionary of outputs
         output = {}
 
