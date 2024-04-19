@@ -23,6 +23,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+import logging
+
 
 class SpatialTransformer(nn.Module):
     """
@@ -136,8 +138,6 @@ class CrossAttention(nn.Module):
     This falls-back to self-attention when conditional embeddings are not specified.
     """
 
-    use_flash_attention: bool = False
-
     def __init__(self, d_model: int, d_cond: int, n_heads: int, d_head: int, is_inplace: bool = True):
         """
         :param d_model: is the input embedding size
@@ -148,13 +148,8 @@ class CrossAttention(nn.Module):
             save memory
         """
         super().__init__()
-
-        self.is_inplace = is_inplace
         self.n_heads = n_heads
         self.d_head = d_head
-
-        # Attention scaling factor
-        self.scale = d_head ** -0.5
 
         # Query, key and value mappings
         d_attn = d_head * n_heads
@@ -162,25 +157,13 @@ class CrossAttention(nn.Module):
         self.to_k = nn.Linear(d_cond, d_attn, bias=False)
         self.to_v = nn.Linear(d_cond, d_attn, bias=False)
 
-        # Final linear layer
+        # Multi-head Attention Layer
+        self.multihead_attention = nn.MultiheadAttention(d_attn, n_heads, batch_first=True)
+
+        # Final linear layer maps dk --> dm
         self.to_out = nn.Linear(d_attn, d_model)
 
-        # Setup [flash attention](https://github.com/HazyResearch/flash-attention).
-        # Flash attention is only used if it's installed
-        # and `CrossAttention.use_flash_attention` is set to `True`.
-        try:
-            # You can install flash attention by cloning their Github repo,
-            # [https://github.com/HazyResearch/flash-attention](https://github.com/HazyResearch/flash-attention)
-            # and then running `python setup.py install`
-            from flash_attn.flash_attention import FlashAttention
-            self.flash = FlashAttention()
-            # Set the scale for scaled dot-product attention.
-            self.flash.softmax_scale = self.scale
-        # Set to `None` if it's not installed
-        except ImportError:
-            self.flash = None
-
-    def forward(self, x: torch.Tensor, cond: Optional[torch.Tensor] = None):
+    def forward(self, x: torch.Tensor, cond: Optional[torch.Tensor] = None, flash: Optional[bool] = True):
         """
         :param x: are the input embeddings of shape `[batch_size, height * width, d_model]`
         :param cond: is the conditional embeddings of shape `[batch_size, n_cond, d_cond]`
@@ -196,91 +179,16 @@ class CrossAttention(nn.Module):
         k = self.to_k(cond)
         v = self.to_v(cond)
 
-        # Use flash attention if it's available and the head size is less than or equal to `128`
-        if CrossAttention.use_flash_attention and self.flash is not None and not has_cond and self.d_head <= 128:
-            return self.flash_attention(q, k, v)
-        # Otherwise, fallback to normal attention
+        # If flash attention for optimised speed and memory cast to float16 supported by Pytorch
+        if flash:
+            with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
+                with torch.cuda.amp.autocast():
+                    logging.warn("Flash attention requires dtype float16. Casting to float16 and recasting attention to float32.")
+                    attn, _ = self.multihead_attention(q.half(), k.half(), v.half(), need_weights=False)
+            return self.to_out(attn.float())
         else:
-            return self.normal_attention(q, k, v)
-
-    def flash_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
-        """
-        #### Flash Attention
-
-        :param q: are the query vectors before splitting heads, of shape `[batch_size, seq, d_attn]`
-        :param k: are the query vectors before splitting heads, of shape `[batch_size, seq, d_attn]`
-        :param v: are the query vectors before splitting heads, of shape `[batch_size, seq, d_attn]`
-        """
-
-        # Get batch size and number of elements along sequence axis (`width * height`)
-        batch_size, seq_len, _ = q.shape
-
-        # Stack `q`, `k`, `v` vectors for flash attention, to get a single tensor of
-        # shape `[batch_size, seq_len, 3, n_heads * d_head]`
-        qkv = torch.stack((q, k, v), dim=2)
-        # Split the heads
-        qkv = qkv.view(batch_size, seq_len, 3, self.n_heads, self.d_head)
-
-        # Flash attention works for head sizes `32`, `64` and `128`, so we have to pad the heads to
-        # fit this size.
-        if self.d_head <= 32:
-            pad = 32 - self.d_head
-        elif self.d_head <= 64:
-            pad = 64 - self.d_head
-        elif self.d_head <= 128:
-            pad = 128 - self.d_head
-        else:
-            raise ValueError(f'Head size ${self.d_head} too large for Flash Attention')
-
-        # Pad the heads
-        if pad:
-            qkv = torch.cat((qkv, qkv.new_zeros(batch_size, seq_len, 3, self.n_heads, pad)), dim=-1)
-
-        # Compute attention
-        # $$\underset{seq}{softmax}\Bigg(\frac{Q K^\top}{\sqrt{d_{key}}}\Bigg)V$$
-        # This gives a tensor of shape `[batch_size, seq_len, n_heads, d_padded]`
-        out, _ = self.flash(qkv)
-        # Truncate the extra head size
-        out = out[:, :, :, :self.d_head]
-        # Reshape to `[batch_size, seq_len, n_heads * d_head]`
-        out = out.reshape(batch_size, seq_len, self.n_heads * self.d_head)
-
-        # Map to `[batch_size, height * width, d_model]` with a linear layer
-        return self.to_out(out)
-
-    def normal_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
-        """
-        #### Normal Attention
-        
-        :param q: are the query vectors before splitting heads, of shape `[batch_size, seq, d_attn]`
-        :param k: are the query vectors before splitting heads, of shape `[batch_size, seq, d_attn]`
-        :param v: are the query vectors before splitting heads, of shape `[batch_size, seq, d_attn]`
-        """
-
-        # Split them to heads of shape `[batch_size, seq_len, n_heads, d_head]`
-        q = q.view(*q.shape[:2], self.n_heads, -1)
-        k = k.view(*k.shape[:2], self.n_heads, -1)
-        v = v.view(*v.shape[:2], self.n_heads, -1)
-
-        # Calculate attention $\frac{Q K^\top}{\sqrt{d_{key}}}$
-        attn = torch.einsum('bihd,bjhd->bhij', q, k) * self.scale
-
-        # Compute softmax
-        # $$\underset{seq}{softmax}\Bigg(\frac{Q K^\top}{\sqrt{d_{key}}}\Bigg)$$
-        if self.is_inplace:
-            half = attn.shape[0] // 2
-            attn[half:] = attn[half:].softmax(dim=-1)
-            attn[:half] = attn[:half].softmax(dim=-1)
-        else:
-            attn = attn.softmax(dim=-1)
-
-        # Compute attention output
-        # $$\underset{seq}{softmax}\Bigg(\frac{Q K^\top}{\sqrt{d_{key}}}\Bigg)V$$
-        out = torch.einsum('bhij,bjhd->bihd', attn, v)
-        # Reshape to `[batch_size, height * width, n_heads * d_head]`
-        out = out.reshape(*out.shape[:2], -1)
-        # Map to `[batch_size, height * width, d_model]` with a linear layer
-        return self.to_out(out)
+            attn, _ = self.multihead_attention(q, k, v, need_weights=False)
+            return self.to_out(attn)
 
 
 class FeedForward(nn.Module):
