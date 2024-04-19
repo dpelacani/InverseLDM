@@ -7,7 +7,7 @@ data:
 
     condition:
         mode: null
-        condition_path: null    
+        path: null    
         resize: null
         scale: null
         clip_outliers: false
