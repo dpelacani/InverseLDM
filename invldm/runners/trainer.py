@@ -45,7 +45,7 @@ class Trainer():
         )
 
         self.diffusion = DiffusionRunner(
-            autoencoder=self.autoencoder.model.module.model,
+            autoencoder=self.autoencoder.model.model,
             args=args.diffusion,
             args_run=args.run,
             args_logging=args.logging,
@@ -63,14 +63,14 @@ class Trainer():
         if isinstance(sample, tuple):
             sample = sample[0]
         sample = sample.to(self.autoencoder.device)
-        logging.info(summary(model=self.autoencoder.model.module, input_data=sample.shape, device=self.autoencoder.device))
+        logging.info(summary(model=self.autoencoder.model, input_data=sample.shape))#, device=self.autoencoder.device))
 
         logging.info(" ---- Model - Diffusion ----")
         if self.args.diffusion.training.n_epochs > 0:
             with torch.no_grad():
                 _ = self.diffusion.model.module.autoencoder.encode(sample.unsqueeze(0).float())
-                embbeded_sample = self.diffusion.model.module.autoencoder.sample().squeeze(0).to(self.diffusion.device)
-            logging.info(summary(model=self.diffusion.model.module, input_data=embbeded_sample.shape, device=self.diffusion.device))
+                embbeded_sample = self.diffusion.model.module.autoencoder.sample().squeeze(0)#.to(self.diffusion.device)
+            logging.info(summary(model=self.diffusion.model.module, input_data=embbeded_sample.shape))#, device=self.diffusion.device))
         
         logging.info(" ---- Autoencoder Training ---- ")
         self.autoencoder.train()

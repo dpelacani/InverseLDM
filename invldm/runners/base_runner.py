@@ -8,6 +8,8 @@ import logging
 import platform
 import matplotlib.pyplot as plt
 
+from accelerate import Accelerator
+
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -46,6 +48,8 @@ class BaseRunner(ABC):
 
         self.completed = False
 
+        self.accelerator = Accelerator()
+
     @abstractmethod
     def train_step(self, input: torch.Tensor, **kwargs) -> dict:
         """ Function performs one batch training step. Input is a batch for training """
@@ -67,8 +71,8 @@ class BaseRunner(ABC):
             "name": self.args.name,
             "dataset": self.train_loader.dataset.dataset.__dict__,
             "device": self.device,
-            "device_ids": self.model.device_ids,
-            "gpus": [torch.cuda.get_device_name(id) for id in self.model.device_ids],
+            "device_ids": self.run_args.gpu_ids,
+            "gpus": [torch.cuda.get_device_name(id) for id in self.run_args.gpu_ids],
             "processor": platform.machine() + " " + platform.processor() + " " + platform.system(),
             "seed": self.run_args.seed,
         }
@@ -274,10 +278,12 @@ class BaseRunner(ABC):
                         # Unpack batch into input and condition (if returned) and send to device
                         if isinstance(batch, list):
                             input, condition = batch
-                            input, condition = input.float().to(self.device), condition.float().to(self.device)
+                            input, condition = input.float(), condition.float()
+                            # input, condition = input.float().to(self.device), condition.float().to(self.device)
                         else:
                             input, condition = batch, None
-                            input = input.float().to(self.device)
+                            input = input.float()
+                            # input = input.float().to(self.device)
 
                         # Train batch
                         output = self.train_step(input, condition=condition)
@@ -412,20 +418,24 @@ class BaseRunner(ABC):
                                     # Unpack validation batch into input and condition (if returned) and send to device.
                                     if isinstance(val_batch, list):
                                         val_input, val_condition = val_batch
-                                        val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
+                                        val_input, val_condition = val_input.float(), val_condition.float()
+                                        # val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
                                     else:
                                         val_input, val_condition = val_batch, None
-                                        val_input = val_input.float().to(self.device)
+                                        val_input = val_input.float()
+                                        # val_input = val_input.float().to(self.device)
                                 
                                 # Restart iterator and get batch
                                 except StopIteration:
                                     valid_iterator = iter(self.valid_loader)  
                                     if isinstance(val_batch, list):
                                         val_input, val_condition = val_batch
-                                        val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
+                                        val_input, val_condition = val_input.float(), val_condition.float()
+                                        # val_input, val_condition = val_input.float().to(self.device), val_condition.float().to(self.device)
                                     else:
                                         val_input, val_condition = val_batch, None
-                                        val_input = val_input.float().to(self.device)
+                                        val_input = val_input.float()
+                                        # val_input = val_input.float().to(self.device)
 
                                 # Validate batch
                                 val_output = self.valid_step(val_input, condition=val_condition)
@@ -543,10 +553,12 @@ class BaseRunner(ABC):
                 # Unpack batch into input and condition (if returned) and send to device
                 if isinstance(batch, list):
                     input, condition = batch
-                    input, condition = input.float().to(self.device), condition.float().to(self.device)
+                    input, condition = input.float(), condition.float()
+                    # input, condition = input.float().to(self.device), condition.float().to(self.device)
                 else:
                     input, condition = batch, None
-                    input = input.float().to(self.device)
+                    input = input.float()
+                    # input = input.float().to(self.device)
 
                  # Validation step   
                 output = self.valid_step(input, condition=condition)
@@ -570,10 +582,12 @@ class BaseRunner(ABC):
                 # Unpack sampling batch into input and condition (if returned) and send to device.          
                 if isinstance(sample_batch, list):
                     input, condition = sample_batch
-                    input, condition = input.float().to(self.device), condition.float().to(self.device)
+                    input, condition = input.float(), condition.float()
+                    # input, condition = input.float().to(self.device), condition.float().to(self.device)
                 else:
                     input, condition = sample_batch, None
-                    input = input.float().to(self.device)
+                    input = input.float()
+                    # input = input.float().to(self.device)
 
                 sample, _ = self.sample_step(input, condition=condition)
                 self.save_figure(sample, "", "sample", save_tensor=True)

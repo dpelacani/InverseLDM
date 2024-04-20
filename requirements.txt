@@ -7,3 +7,4 @@ torch_summary==1.4.5
 torchvision==0.16.2
 tensorboard==2.12.1
 lpips==0.1.4
+accelerate==0.29.3

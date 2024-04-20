@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+import logging
+
 from . import BaseRunner
 from ..models.utils import (_instance_autoencoder_model, _instance_optimiser,
                           _instance_autoencoder_loss_fn, _instance_lr_scheduler,
@@ -13,11 +15,12 @@ class AutoencoderRunner(BaseRunner):
         super().__init__(**kwargs)
 
         self.model = _instance_autoencoder_model(self.args, self.device)
-        self.model = data_parallel_wrapper(module=self.model,
-                                           device=self.device,
-                                           device_ids=self.gpu_ids)
+        # self.model = data_parallel_wrapper(module=self.model,
+        #                                    device=self.device,
+        #                                    device_ids=self.gpu_ids)
         
-        self.device = self.model.module.device
+        # self.device = self.model.module.device
+        
 
         # If not in sampling only mode, instantiate optimising objects
         if not self.args.sampling_only: 
@@ -36,7 +39,28 @@ class AutoencoderRunner(BaseRunner):
                 self.d_lr_scheduler = _instance_lr_scheduler(self.args, self.d_optimiser)
                 self.d_loss_fn = _instance_discriminator_loss_fn(self.args)
 
+        # Wrap in acceleratorself.model,
+        self.model,
+        self.optimiser,
+        self.lr_scheduler,
+        self.d_model,
+        self.d_optimiser,
+        self.d_lr_scheduler,
+        self.train_loader,
+        self.valid_loader,
+        self.sample_loader = self.accelerator.prepare(self.model,
+                                 self.optimiser,
+                                 self.lr_scheduler,
+                                 self.d_model,
+                                 self.d_optimiser,
+                                 self.d_lr_scheduler,
+                                 self.train_loader,
+                                 self.valid_loader,
+                                 self.sample_loader)
+        
+
     def train_step(self, input, **kwargs):
+        logging.info(input.device, self.model.device)
         # Get condition from kwargs
         cond = kwargs.pop("condition", None)
 
@@ -55,7 +79,8 @@ class AutoencoderRunner(BaseRunner):
 
         # Zero grad and back propagation
         self.optimiser.zero_grad()
-        loss.backward()
+        # loss.backward()
+        self.accelerator.backward(loss)
 
         # Gradient Clipping
         if self.args.optim.grad_clip:
@@ -84,7 +109,8 @@ class AutoencoderRunner(BaseRunner):
 
             # Zero grad and back propagation
             self.d_optimiser.zero_grad()
-            loss_d.backward()
+            # loss_d.backward()
+            self.accelerator.backward(loss_d)
 
             # Update gradients
             self.d_optimiser.step()

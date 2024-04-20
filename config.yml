@@ -97,7 +97,7 @@ diffusion:
 
     training:
         batch_size: 8
-        n_epochs: 200
+        n_epochs: 0 #200
         ckpt_freq: 100
         ckpt_last_only: true
         sampling_freq: 500

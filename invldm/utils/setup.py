@@ -247,21 +247,26 @@ def check_dataset_file(args):
 
 
 def check_devices(args):
-    if args.run.device == "cpu" or "cuda" in args.run.device:
+    if args.run.device in ("cpu", "cuda"):
         pass
     else:
         new_device = "cuda" if torch.cuda.is_available() else "cpu"
-        logging.warn(f"Device '{args.run.device}' can't be recognised. Changing devide to {new_device}.")
+        logging.warn(f"Device '{args.run.device}' can't be recognised. Changing device to {new_device}.")
         args.run.device = new_device
 
     gpu_ids = []
-    if args.run.gpu_ids:
-        for id in args.run.gpu_ids:
-            try:
-                gpu_ids.append(int(id))
-            except ValueError:
-                pass
-            args.run.gpu_ids = gpu_ids
+    if args.run.device == "cuda":
+        if args.run.gpu_ids:
+            for id in args.run.gpu_ids:
+                try:
+                    gpu_ids.append(int(id))
+                except ValueError:
+                    pass
+        else:
+            gpu_ids = [i for i in range(len(torch.cuda.device_count()))]
+    
+    args.run.gpu_ids = gpu_ids
+
     return args
 
 
