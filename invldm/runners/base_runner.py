@@ -47,6 +47,10 @@ class BaseRunner(ABC):
 
         self.completed = False
 
+        self.sys_logger = self.logging_args.logger
+
+        # self.global_step_actor = GlobalStepActor.remote()
+
     @abstractmethod
     def train_step(self, input: torch.Tensor, **kwargs) -> dict:
         """ Function performs one batch training step. Input is a batch for training """
@@ -97,7 +101,7 @@ class BaseRunner(ABC):
             path = os.path.join(self.args.ckpt_path, latest_ckpt_name)
 
         torch.save(states, path)
-        logging.info(f"Saved {self.args.name.lower()} checkpoint {path}")
+        self.sys_logger.info(f"Saved {self.args.name.lower()} checkpoint {path}")
         return None
 
     def load_checkpoint(self, path: Optional[str] = "", model_only: Optional[bool] = False) -> None:
@@ -107,24 +111,24 @@ class BaseRunner(ABC):
                 path = os.path.join(self.args.ckpt_path, latest_ckpt_name)
             except IndexError as e:
                 if self.args.sampling_only:
-                    logging.critical(f"Could not find latest {self.args.name.lower()} model. Please specify checkpoint path to load.")
+                    self.sys_logger.critical(f"Could not find latest {self.args.name.lower()} model. Please specify checkpoint path to load.")
                     raise IndexError(e)
                 else:
                     if self.run_args.y:
                         return None
                     else:
                         if self.args.training.n_epochs > 0:
-                            logging.critical(f"Could not find latest {self.args.name.lower()} model.")
+                            self.sys_logger.critical(f"Could not find latest {self.args.name.lower()} model.")
                             user_input = input("\tProceed from scratch? (Y/N): ")
                             if user_input.lower() == "y" or user_input.lower() == "yes":
                                 return None
                             else:
-                                logging.critical(f"Aborting...")
+                                self.sys_logger.critical(f"Aborting...")
                                 raise IndexError(e)
                         else:
                             return None
 
-        logging.info(f"Loading {self.args.name} checkpoint {path} ...")
+        self.sys_logger.info(f"Loading {self.args.name} checkpoint {path} ...")
 
         try:
             states = torch.load(path)
@@ -147,7 +151,7 @@ class BaseRunner(ABC):
                 self.d_lr_scheduler = states["d_lr_scheduler"]
 
 
-        logging.info(f"{self.args.name.lower().capitalize()} checkpoint successfully loaded.")
+        self.sys_logger.info(f"{self.args.name.lower().capitalize()} checkpoint successfully loaded.")
         return None
     
     def get_checkpoint_path(self) -> str:
@@ -162,7 +166,7 @@ class BaseRunner(ABC):
                     ckpt_file = [f for f in os.listdir(self.args.ckpt_path) if fnmatch.fnmatch(f, f"*_step_{ckpt_no}*")][0]
                     ckpt = os.path.join(self.args.ckpt_path, ckpt_file)
                 except IndexError:
-                    logging.critical(f"Tried to load step {ckpt_no} from {self.args.ckpt_path} but found no file. Loading latest model...")
+                    self.sys_logger.critical(f"Tried to load step {ckpt_no} from {self.args.ckpt_path} but found no file. Loading latest model...")
             except ValueError:
                 ckpt = self.args.model.checkpoint
         return ckpt
@@ -174,7 +178,7 @@ class BaseRunner(ABC):
 
         # Prevent running train if it's complete
         if self.epoch >= self.args.training.n_epochs:
-            logging.info(f"{self.args.name.lower().capitalize()} training already completed with {self.epoch} epochs")
+            self.sys_logger.info(f"{self.args.name.lower().capitalize()} training already completed with {self.epoch} epochs")
             self.completed = True
 
         # Resume training at beginning of current epoch
@@ -205,12 +209,12 @@ class BaseRunner(ABC):
         fig = visualise_samples(x, scale=scale)
         plt.savefig(path)
         plt.close(fig)
-        logging.info(f"Saved {self.args.name} {mode} {fig_type} figure in {path}")
+        self.sys_logger.info(f"Saved {self.args.name} {mode} {fig_type} figure in {path}")
 
         if save_tensor:
             path = path[:-3] + "pt"
             torch.save(x, path)
-            logging.info(f"Saved {self.args.name} {mode} {fig_type} tensor in {path}")
+            self.sys_logger.info(f"Saved {self.args.name} {mode} {fig_type} tensor in {path}")
         return None
 
     def get_total_round_steps(self) -> int:
@@ -292,11 +296,11 @@ class BaseRunner(ABC):
                         try:
                             loss = output["loss"]
                         except KeyError as e:
-                            logging.critical("Train step output must be a dictionary containing the key 'loss'")
+                            self.sys_logger.critical("Train step output must be a dictionary containing the key 'loss'")
                             raise KeyError(e)
 
                         # Log loss
-                        print(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Training Loss: {loss.item()} {self.eta(start_time)}")
+                        self.sys_logger.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Training Loss: {loss.item()} {self.eta(start_time)}")
                         if logger:
                             logger.log_scalar(
                                 tag=f"{self.args.name.lower()}_training_loss",
@@ -320,7 +324,7 @@ class BaseRunner(ABC):
                                     val=loss_d.item(),
                                     step=self.steps
                                 )
-                                logging.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Discriminator Training Loss: {loss_d.item()} {self.eta(start_time)}")
+                                self.sys_logger.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Discriminator Training Loss: {loss_d.item()} {self.eta(start_time)}")
 
 
                         # Save training recon fig
@@ -444,11 +448,11 @@ class BaseRunner(ABC):
                                 try:
                                     val_loss = val_output["loss"]
                                 except KeyError as e:
-                                    logging.critical("Validation step output must be a dictionary containing the key 'loss'")
+                                    self.sys_logger.critical("Validation step output must be a dictionary containing the key 'loss'")
                                     raise KeyError(e)
 
                                 # Log validation
-                                logging.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Validation Loss: {val_loss.item()}")
+                                self.sys_logger.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Validation Loss: {val_loss.item()}")
                                 if logger:
                                     logger.log_scalar(
                                         tag=f"{self.args.name.lower()}_valid_loss",
@@ -465,7 +469,7 @@ class BaseRunner(ABC):
                                             val=output["loss_d"].item(),
                                             step=self.steps
                                         )
-                                        logging.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Discriminator Validation Loss: {loss_d.item()} {self.eta(start_time)}")
+                                        self.sys_logger.info(f"{self.args.name.lower().capitalize()} Epoch {self.epoch} Step {self.steps} Discriminator Validation Loss: {loss_d.item()} {self.eta(start_time)}")
 
                                 # Save validation recon figure
                                 if valid_save_recon_freq:
@@ -538,13 +542,17 @@ class BaseRunner(ABC):
                             self.save_checkpoint()
 
                         self.steps += 1
+                        # self.global_step_actor.increment.remote()
+                        # print(">>>>>>>>>>>>>>>>>>>", self.global_step_actor.step)
 
                     self.epoch += 1
 
             except KeyboardInterrupt:
                 self.save_checkpoint()
+                # ray.stop()
                 raise (KeyboardInterrupt)
         self.completed = True
+        # ray.stop()
         return None
 
     @torch.no_grad()
@@ -567,13 +575,13 @@ class BaseRunner(ABC):
                 try:
                     loss = output["loss"]
                 except KeyError as e:
-                    logging.critical("Validation step output must be a dictionary containing the key 'loss'")
+                    self.sys_logger.critical("Validation step output must be a dictionary containing the key 'loss'")
                     raise KeyError(e)
                 total_loss += loss * input.shape[0]
 
             # Average validation losses
             avg_loss = total_loss / len(self.valid_loader.dataset)
-            logging.info(f"{self.args.name.lower().capitalize()} Average validation loss: {avg_loss.item()}")
+            self.sys_logger.info(f"{self.args.name.lower().capitalize()} Average validation loss: {avg_loss.item()}")
         return None
 
     @torch.no_grad()
@@ -594,9 +602,17 @@ class BaseRunner(ABC):
                 sample, _ = self.sample_step(input, condition=condition)
                 self.save_figure(sample, "", "sample", save_tensor=True)
 
-                logging.info(f"{self.args.name.lower().capitalize()} Sampling batch {self.steps} / {len(self.sample_loader)} concluded. {self.eta(start_time)}")
+                self.sys_logger.info(f"{self.args.name.lower().capitalize()} Sampling batch {self.steps} / {len(self.sample_loader)} concluded. {self.eta(start_time)}")
 
                 if self.args.sampling_only:
                     self.steps += 1
         return None
 
+
+
+@ray.remote
+class GlobalStepActor:
+    def __init__(self):
+        self.step = 0
+    def increment(self,):
+        self.step += 1

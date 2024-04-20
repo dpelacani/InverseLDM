@@ -2,6 +2,8 @@ import torch
 import logging
 import ray.train.torch
 
+from datetime import datetime
+
 from .autoencoder_runner import AutoencoderRunner
 from .diffusion_runner import DiffusionRunner
 
@@ -68,9 +70,17 @@ class Sampler():
         self.diffusion.model.module.ldm.eval()
 
     def sample(self):
+        s_time = datetime.now()
+        
+        # Sample autoencoder
         logging.info(" ---- Autoencoder Sampling ---- ")
         self.autoencoder.sample()
+        
+        # Sample diffusion
         logging.info(" ---- Diffusion Sampling ---- ")
         self.diffusion.sample()
-        logging.info(" ---- Sampling Concluded without Errors ---- ")
+
+        t_time = datetime.now() - s_time
+        h, m, s = str(t_time).split(".")[0].split(":")
+        logging.info(f" ---- Sampling Concluded in {h}h {m}m {s}s without Errors ---- ")
 

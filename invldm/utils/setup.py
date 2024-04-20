@@ -12,6 +12,8 @@ import multiprocessing
 from .utils import dict2namespace, namespcae_summary_ticket
 from ..loggers.utils import _instance_logger
 
+sys_logger = logging.getLogger("ray")
+
 
 def setup_train():
     # getting cl and yml args
@@ -61,7 +63,7 @@ def setup_train():
         config = "\n\n ------------------------------ RESUMED CONFIGURATION ------------------------------ " + namespcae_summary_ticket(args)
     else:
         config = "\n\n ---------------------------------- CONFIGURATION ---------------------------------- " + namespcae_summary_ticket(args)
-    logging.info(config)
+    sys_logger.info(config)
 
     return args
 
@@ -98,7 +100,7 @@ def setup_sampling():
 
     # std out experiment summary ticket
     config = "\n\n ---------------------------------- SAMPLING CONFIGURATION ---------------------------------- " + namespcae_summary_ticket(args)
-    logging.info(config)
+    sys_logger.info(config)
 
     return args
 
@@ -222,7 +224,7 @@ def parse_config(config_file):
         with open(config_file, "r") as f:
             config = dict2namespace(yaml.safe_load(f))
     except yaml.constructor.ConstructorError:
-        logging.warn(f"Loading {config_file} unsafely with YML.")
+        sys_logger.warn(f"Loading {config_file} unsafely with YML.")
         with open(config_file, "r") as f:
             config = yaml.unsafe_load(f)
         try:
@@ -254,7 +256,7 @@ def check_dataset_file(args):
     except FileNotFoundError:
         msg = f"File {args.data.dataset.lower()}_dataset.py must exist in\
                             {args.data.dataset_path}"
-        logging.exception(msg)
+        sys_logger.exception(msg)
         raise Exception(FileNotFoundError, msg)
     return args
 
@@ -264,7 +266,7 @@ def check_devices(args):
         pass
     else:
         new_device = "cuda" if torch.cuda.is_available() else "cpu"
-        logging.warn(f"Device '{args.run.device}' can't be recognised. Changing devide to {new_device}.")
+        sys_logger.warn(f"Device '{args.run.device}' can't be recognised. Changing devide to {new_device}.")
         args.run.device = new_device
 
     gpu_ids = []
@@ -328,7 +330,7 @@ def check_overwrite(args):
     if args.run.overwrite:
         if args.run.resume_training:
             args.run.overwrite = False
-            logging.warn("Both --resume_training and --overwrite flags passed, turning off overwrite")
+            sys_logger.warn("Both --resume_training and --overwrite flags passed, turning off overwrite")
         elif os.path.exists(args.run.exp_folder):
             if args.run.y:
                 user_input = "y"
@@ -338,7 +340,7 @@ def check_overwrite(args):
             if user_input.lower() in ['y', 'yes']:
                 pass
             elif user_input.lower() in ['n', 'no']:
-                logging.info("No overwriting, aborting script.")
+                sys_logger.info("No overwriting, aborting script.")
                 sys.exit()
             else:
                 check_overwrite(args)
@@ -350,10 +352,10 @@ def create_folder(folder, overwrite=False, exception=True):
         os.makedirs(folder)
     except FileExistsError as e:
         if overwrite:
-            logging.info(f"Overwriting {folder} ...")
+            sys_logger.info(f"Overwriting {folder} ...")
             shutil.rmtree(folder)
             os.makedirs(folder)
-            logging.info(f"Done!")
+            sys_logger.info(f"Done!")
         else:
             if exception:
                 raise Exception(FileExistsError, f"Experiment folder '{folder}' already exists. Use the --overwrite flag if you wish to overwrite or --resume_training flag to continue training from a checkpoint.")
@@ -445,12 +447,6 @@ def create_sampling_experiment_folders(args):
     args.run.samples_folder = samples_folder
     create_folder(samples_folder, args.run.overwrite, exception=False)
 
-    # # Create seismic folder
-    # if args.seismic.data_file and args.seismic.save_condition and args.seismic.mode != "full":
-    #     seismic_folder = os.path.join(args.run.exp_folder, "seismic")
-    #     args.seismic.seismic_path = seismic_folder
-    #     create_folder(seismic_folder, args.run.overwrite, exception=False)
-
     return None
 
 
@@ -467,17 +463,16 @@ def setup_logger(args):
     handler1.setFormatter(formatter)
     handler2.setFormatter(formatter)
 
-    logger = logging.getLogger()
-    logger.addHandler(handler1)
-    logger.addHandler(handler2)
-    logger.setLevel(level)
+    sys_logger.addHandler(handler1)
+    sys_logger.addHandler(handler2)
+    sys_logger.setLevel(level)
 
-    args.logging.logger = logger
+    args.logging.logger = sys_logger
     args.run.pid = os.getpid()
 
-    logging.info("Writing log file to {}".format(args.run.log_folder))
-    logging.info("Exp instance id = {}".format(args.run.pid))
-    logging.info("Exp comment = {}".format(args.run.comment))
+    sys_logger.info("Writing log file to {}".format(args.run.log_folder))
+    sys_logger.info("Exp instance id = {}".format(args.run.pid))
+    sys_logger.info("Exp comment = {}".format(args.run.comment))
 
     return args
 
