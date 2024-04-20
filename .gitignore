@@ -3,4 +3,3 @@ slurm*
 *.ipynb
 **/__pycache__/
 .vscode/
-TorchTrainer*/
