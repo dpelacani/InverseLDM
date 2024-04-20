@@ -30,7 +30,7 @@ def _instance_dataset(args):
 def _instance_dataloader(args, dataset, shuffle=True):
     if dataset and len(dataset) > 0:
         dataloader = DataLoader(dataset,
-                                batch_size=args.worker_batch_size,
+                                batch_size=args.batch_size,
                                 shuffle=shuffle,
                                 # num_workers=args.num_workers
                     )
