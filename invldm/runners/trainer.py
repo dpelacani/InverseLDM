@@ -1,9 +1,5 @@
-import os
-
-import torch
-import logging
 import ray
-import trainy
+import logging
 
 from ray.train import ScalingConfig, RunConfig
 from ray.train.torch import TorchTrainer
@@ -18,15 +14,16 @@ from ..seismic.utils import _instance_conditioner
 from ..datasets.utils import (_instance_dataset, _instance_dataloader,
                             _split_valid_dataset)
 
-sys_logger = logging.getLogger("ray")
 
+sys_logger = logging.getLogger("ray")
 
 class Trainer():
     def __init__(self, args):
         self.args = args
 
         # Ray scaling config
-        self.ray_scaling_config = ScalingConfig(num_workers=args.run.ray_num_workers, use_gpu="cuda" in args.run.device)
+        self.ray_scaling_config = ScalingConfig(num_workers=args.run.ray_num_workers, use_gpu="cuda" in args.run.device,
+                                                resources_per_worker={})
         self.ray_running_config = RunConfig(name="ray", storage_path=args.run.log_folder)
 
         # Datasets
@@ -120,8 +117,8 @@ class Trainer():
         #         embbeded_sample = self.diffusion.model.autoencoder.sample().squeeze(0).to(self.diffusion.device)
         #     logging.info(summary(model=self.diffusion.model, input_data=embbeded_sample.shape, device=self.diffusion.device))
         
+        # ray.init(_temp_dir=self.args.run.log_folder)
         sys_logger.info(" ---- Autoencoder Training ---- ")
-        # ray.init()
         ray_autoencoder_trainer = TorchTrainer(self.ray_train_autoencoder,
                                                scaling_config=self.ray_scaling_config,
                                                run_config=self.ray_running_config)
