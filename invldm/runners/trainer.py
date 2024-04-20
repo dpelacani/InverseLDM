@@ -23,7 +23,8 @@ class Trainer():
 
         # Ray scaling config
         self.ray_scaling_config = ScalingConfig(num_workers=args.run.ray_num_workers, use_gpu="cuda" in args.run.device,
-                                                resources_per_worker={})
+                                                # resources_per_worker={"CPU":4, "GPU":2}
+                                                )
         self.ray_running_config = RunConfig(name="ray", storage_path=args.run.log_folder)
 
         # Datasets
@@ -99,6 +100,9 @@ class Trainer():
 
     def train(self):
         s_time = datetime.now()
+
+        
+        ray.init(include_dashboard=False)
 
         # sys_logger.info(" ---- Dataset ---- ")
         # sys_logger.info(self.dataset)

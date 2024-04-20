@@ -1,17 +1,17 @@
 data:
     dataset: Brain2D
-    data_path: /home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-models/
+    data_path: /raid/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-models/
     mode: vp
     maxsamples: null
     slowness: false
-    resize: [64, 64]
+    resize: [256, 256]
     scale: [0, 1.]
     clip_outliers: outer
     to_tensor: false
     normalise: false
     condition:
-        mode: stack-pca30x30
-        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_pca/data"    
+        mode: stack-trace-pca-100x100
+        path: "/raid/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_pca/data"    
         resize: null
         scale: [0., 1.]
         clip_outliers: null
@@ -34,10 +34,11 @@ autoencoder:
         div_loss: kl
         perceptual_loss: lpips
         adversarial_loss: true
-        # checkpoint: "/home/dp4018/scripts/InverseLDM/exps/autoencoders/cond_vae_latent03_pinaya_02_lpips_gan_05/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth"
+        checkpoint: null
+        # checkpoint: /raid/dp4018/scripts/InverseLDM/exps/autoencoders256/cond_vae_trace_pca100/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth
         condition:
             in_channels: 1
-            feature_channels: 16
+            feature_channels: 32
     params:
         div_weight: 0.00001
         perceptual_weight: 1.0
@@ -50,7 +51,7 @@ autoencoder:
         
     training:
         batch_size: 16
-        n_epochs: 1 # 300
+        n_epochs: 300
         save_recon_freq: 500
         ckpt_freq: 500
         ckpt_last_only: true
@@ -81,7 +82,7 @@ diffusion:
         num_res_blocks: 2
         attention: [0, 1, 2]
         num_transformer_layers: 2
-        num_attn_heads: 1
+        num_attn_heads: 4
         loss: l2
         condition:
             in_channels: 1
@@ -101,7 +102,7 @@ diffusion:
         ckpt_last_only: true
         sampling_freq: 500
         sampling_temperature: 0.5
-        sampling_skip_steps: 0 
+        sampling_skip_steps: 0
 
     validation:
         split: 0.2
@@ -110,7 +111,7 @@ diffusion:
         sampling_freq: 500
         
     sampling:
-        batch_size: 4
+        batch_size: 8
         output: last_only
         n_samples: 10
 
