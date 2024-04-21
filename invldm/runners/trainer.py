@@ -45,7 +45,7 @@ class Trainer():
         )
 
         self.diffusion = DiffusionRunner(
-            autoencoder=self.autoencoder.model.model,
+            autoencoder=self.autoencoder.model.module.model,
             args=args.diffusion,
             args_run=args.run,
             args_logging=args.logging,
@@ -53,30 +53,31 @@ class Trainer():
             valid_loader=self.diffusion_valid_dataloader,
         )
 
+        self.sys_logger = args.logging.logger
 
     def train(self):
-        logging.info(" ---- Dataset ---- ")
-        logging.info(self.dataset)
+        self.sys_logger.info(" ---- Dataset ---- ")
+        self.sys_logger.info(self.dataset)
 
-        logging.info(" ---- Model - Autoencoder ----")
+        self.sys_logger.info(" ---- Model - Autoencoder ----")
         sample = self.dataset[0]
         if isinstance(sample, tuple):
             sample = sample[0]
         sample = sample.to(self.autoencoder.device)
-        logging.info(summary(model=self.autoencoder.model, input_data=sample.shape))#, device=self.autoencoder.device))
+        self.sys_logger.info(summary(model=self.autoencoder.model, input_data=sample.shape, device=self.autoencoder.device))
 
-        logging.info(" ---- Model - Diffusion ----")
+        self.sys_logger.info(" ---- Model - Diffusion ----")
         if self.args.diffusion.training.n_epochs > 0:
             with torch.no_grad():
                 _ = self.diffusion.model.module.autoencoder.encode(sample.unsqueeze(0).float())
-                embbeded_sample = self.diffusion.model.module.autoencoder.sample().squeeze(0)#.to(self.diffusion.device)
-            logging.info(summary(model=self.diffusion.model.module, input_data=embbeded_sample.shape))#, device=self.diffusion.device))
+                embbeded_sample = self.diffusion.model.module.autoencoder.sample().squeeze(0).to(self.diffusion.device)
+            self.sys_logger.info(summary(model=self.diffusion.model, input_data=embbeded_sample.shape, device=self.diffusion.device))
         
-        logging.info(" ---- Autoencoder Training ---- ")
+        self.sys_logger.info(" ---- Autoencoder Training ---- ")
         self.autoencoder.train()
 
         if self.args.diffusion.training.n_epochs > 0:
-            logging.info(" ---- Diffusion Training ---- ")
+            self.sys_logger.info(" ---- Diffusion Training ---- ")
             self.diffusion.train()
 
-        logging.info(" ---- Training Concluded without Errors ---- ")
+        self.sys_logger.info(" ---- Training Concluded without Errors ---- ")

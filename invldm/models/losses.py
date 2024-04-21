@@ -1,7 +1,11 @@
 import torch
 import torch.nn.functional as F
-from ..utils.utils import scale2range
+
+import warnings
+
 from functools import partial
+
+from ..utils.utils import scale2range
 
 def null_fn(*args, **kwargs):
     return torch.tensor([0.])
@@ -54,7 +58,9 @@ def _perceptual_fn(args):
     elif args.model.perceptual_loss == "lpips":
         import lpips
         lpips_model = args.params.__dict__.get("lpips_model", "alex")
-        lpips_fn = lpips.LPIPS(net=lpips_model, eval_mode=False, verbose=False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lpips_fn = lpips.LPIPS(net=lpips_model, eval_mode=False, verbose=False)
         return lpips_fn
 
     else:

@@ -2,7 +2,10 @@
 from invldm.utils.setup import setup_train
 from invldm.runners.trainer import Trainer
 
+import accelerate
+
 if __name__ == "__main__":
+
     # Gather arguments from CL and from YAML config file,
     # adjust and check for arguemnts
     # create necessary folders for experiment

@@ -7,14 +7,21 @@ import numpy as np
 import torch
 import sys
 import logging
+import accelerate
 
 from .utils import dict2namespace, namespcae_summary_ticket
 from ..loggers.utils import _instance_logger
+
+from accelerate import Accelerator, FullyShardedDataParallelPlugin, DistributedDataParallelKwargs
+from torch.distributed.fsdp.fully_sharded_data_parallel import FullOptimStateDictConfig, FullStateDictConfig
 
 
 def setup_train():
     # getting cl and yml args
     args = parse_args()
+
+    # set up accelerator
+    setup_accelerator(args)
 
     # add default args to missing args
     default_missing_args(args)
@@ -60,7 +67,9 @@ def setup_train():
         config = "\n\n ------------------------------ RESUMED CONFIGURATION ------------------------------ " + namespcae_summary_ticket(args)
     else:
         config = "\n\n ---------------------------------- CONFIGURATION ---------------------------------- " + namespcae_summary_ticket(args)
-    logging.info(config)
+    
+    sys_logger = args.logging.logger
+    sys_logger.info(config)
 
     return args
 
@@ -68,6 +77,9 @@ def setup_train():
 def setup_sampling():
     # getting cl and yml args
     args = parse_args()
+
+    # set up accelerator
+    setup_accelerator(args)
 
     # add default args to missing args
     default_missing_args(args)
@@ -97,7 +109,9 @@ def setup_sampling():
 
     # std out experiment summary ticket
     config = "\n\n ---------------------------------- SAMPLING CONFIGURATION ---------------------------------- " + namespcae_summary_ticket(args)
-    logging.info(config)
+    
+    sys_logger = args.logging.logger
+    sys_logger.info(config)
 
     return args
 
@@ -115,6 +129,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.enabled = True
 
+    torch.autograd.set_detect_anomaly(True)
     return True
 
 
@@ -162,8 +177,7 @@ def parse_args():
         "--gpu_ids",
         type=list,
         default=None,
-        help="List of gpu ids to be used in DataParallel. If None, all will be\
-            used"
+        help="Argument --gpu_ids deprecated. Please set env var CUDA_VISIBLE_DEVICES to control gpu ids."
     )
     parser.add_argument(
         "--seed",
@@ -257,13 +271,14 @@ def check_devices(args):
     gpu_ids = []
     if args.run.device == "cuda":
         if args.run.gpu_ids:
+            logging.critical("Argument --gpu_ids deprecated. Please set env var CUDA_VISIBLE_DEVICES to control gpu ids.")
             for id in args.run.gpu_ids:
                 try:
                     gpu_ids.append(int(id))
                 except ValueError:
                     pass
         else:
-            gpu_ids = [i for i in range(len(torch.cuda.device_count()))]
+            gpu_ids = [i for i in range(torch.cuda.device_count())]
     
     args.run.gpu_ids = gpu_ids
 
@@ -328,20 +343,22 @@ def check_overwrite(args):
     return args
 
 
-def create_folder(folder, overwrite=False, exception=True):
-    try:
-        os.makedirs(folder)
-    except FileExistsError as e:
-        if overwrite:
-            logging.info(f"Overwriting {folder} ...")
-            shutil.rmtree(folder)
+def create_folder(folder, is_main_process, overwrite=False, exception=True):
+    if is_main_process:
+        try:
             os.makedirs(folder)
-            logging.info(f"Done!")
-        else:
-            if exception:
-                raise Exception(FileExistsError, f"Experiment folder '{folder}' already exists. Use the --overwrite flag if you wish to overwrite or --resume_training flag to continue training from a checkpoint.")
+        except FileExistsError as e:
+            if overwrite:
+                if os.path.exists(folder):
+                    logging.info(f"Overwriting {folder} ...")
+                    shutil.rmtree(folder)
+                os.makedirs(folder)
+                logging.info(f"Done!")
             else:
-                pass
+                if exception:
+                    raise Exception(FileExistsError, f"Experiment folder '{folder}' already exists. Use the --overwrite flag if you wish to overwrite or --resume_training flag to continue training from a checkpoint.")
+                else:
+                    pass
     return None
 
 
@@ -352,41 +369,43 @@ def create_training_experiment_folders(args):
     else:
         exception = True
 
+    is_main_process = args.run.accelerator.is_main_process
+
     # Create experiment folder
-    create_folder(args.run.exp_folder, args.run.overwrite, exception)
+    create_folder(args.run.exp_folder, is_main_process, args.run.overwrite, exception)
 
     # Create logging folder
-    create_folder(args.run.log_folder, args.run.overwrite, exception)
+    create_folder(args.run.log_folder, is_main_process, args.run.overwrite, exception)
 
     # Create logging folders for autoencoder and diffusion
     autoencoder_log_path = os.path.join(args.run.log_folder, "autoencoder")
     args.autoencoder.log_path = autoencoder_log_path
-    create_folder(autoencoder_log_path, args.run.overwrite, exception)
+    create_folder(autoencoder_log_path, is_main_process, args.run.overwrite, exception)
 
     diffusion_log_path = os.path.join(args.run.log_folder, "diffusion")
     args.diffusion.log_path = diffusion_log_path
-    create_folder(diffusion_log_path, args.run.overwrite, exception)
+    create_folder(diffusion_log_path, is_main_process, args.run.overwrite, exception)
 
     # Create and checkpoint folder for autoencoder and diffusion
     autoencoder_ckpt_path = os.path.join(autoencoder_log_path, "checkpoints")
     args.autoencoder.ckpt_path = autoencoder_ckpt_path
-    create_folder(autoencoder_ckpt_path, args.run.overwrite, exception)
+    create_folder(autoencoder_ckpt_path, is_main_process, args.run.overwrite, exception)
 
     diffusion_ckpt_path = os.path.join(diffusion_log_path, "checkpoints")
     args.diffusion.ckpt_path = diffusion_ckpt_path
-    create_folder(diffusion_ckpt_path, args.run.overwrite, exception)
+    create_folder(diffusion_ckpt_path, is_main_process, args.run.overwrite, exception)
 
     # Create model tracking management folder
     if args.logging.tool:
         track_folder = os.path.join(args.run.exp_folder, args.logging.tool)
         args.logging.track_folder = track_folder
-        create_folder(track_folder, args.run.overwrite, exception)
+        create_folder(track_folder, is_main_process, args.run.overwrite, exception)
 
     # Create samples folders
     if args.diffusion.training.sampling_freq > 0:
         samples_folder = os.path.join(diffusion_log_path, "samples")
         args.diffusion.samples_path = samples_folder
-        create_folder(samples_folder, args.run.overwrite, exception)
+        create_folder(samples_folder, is_main_process, args.run.overwrite, exception)
     if args.autoencoder.training.sampling_freq > 0:
         samples_folder = os.path.join(autoencoder_log_path, "samples")
         args.autoencoder.samples_path = samples_folder
@@ -396,7 +415,7 @@ def create_training_experiment_folders(args):
     if (args.autoencoder.training.save_recon_freq > 0 or args.autoencoder.validation.save_recon_freq > 0):
         recon_folder = os.path.join(autoencoder_log_path, "recons")
         args.autoencoder.recon_path = recon_folder
-        create_folder(recon_folder, args.run.overwrite, exception)
+        create_folder(recon_folder, is_main_process, args.run.overwrite, exception)
 
     return None
 
@@ -428,12 +447,6 @@ def create_sampling_experiment_folders(args):
     args.run.samples_folder = samples_folder
     create_folder(samples_folder, args.run.overwrite, exception=False)
 
-    # # Create seismic folder
-    # if args.seismic.data_file and args.seismic.save_condition and args.seismic.mode != "full":
-    #     seismic_folder = os.path.join(args.run.exp_folder, "seismic")
-    #     args.seismic.seismic_path = seismic_folder
-    #     create_folder(seismic_folder, args.run.overwrite, exception=False)
-
     return None
 
 
@@ -442,26 +455,45 @@ def setup_logger(args):
     if not isinstance(level, int):
         raise ValueError("Logger level {} not supported".format(args.run.verbose))
 
-    handler1 = logging.StreamHandler()
-    handler2 = logging.FileHandler(os.path.join(args.run.log_folder, "stdout.txt"))
+    handler = logging.FileHandler(os.path.join(args.run.log_folder, "stdout.txt"))
     formatter = logging.Formatter(
         "%(levelname)s - %(filename)s - %(asctime)s - %(message)s"
     )
-    handler1.setFormatter(formatter)
-    handler2.setFormatter(formatter)
+    handler.setFormatter(formatter)
 
-    logger = logging.getLogger()
-    logger.addHandler(handler1)
-    logger.addHandler(handler2)
+    logger = accelerate.logging.get_logger(__name__)
+
+    logger.logger.addHandler(handler)
     logger.setLevel(level)
 
     args.logging.logger = logger
     args.run.pid = os.getpid()
 
-    logging.info("Writing log file to {}".format(args.run.log_folder))
-    logging.info("Exp instance id = {}".format(args.run.pid))
-    logging.info("Exp comment = {}".format(args.run.comment))
+    logger.info("Writing log file to {}".format(args.run.log_folder))
+    logger.info("Exp instance id = {}".format(args.run.pid))
+    logger.info("Exp comment = {}".format(args.run.comment))
 
+    return args
+
+def setup_accelerator(args):
+    project_config = accelerate.utils.ProjectConfiguration(
+        project_dir=args.run.log_folder,
+    )
+    fsdp_plugin = FullyShardedDataParallelPlugin(
+        state_dict_config=FullStateDictConfig(offload_to_cpu=False, rank0_only=False),
+        optim_state_dict_config=FullOptimStateDictConfig(offload_to_cpu=False, rank0_only=False),
+)
+
+    args.run.accelerator = Accelerator(
+        project_config=project_config,
+        mixed_precision="fp16",
+        cpu=args.run.device=="cpu",
+        fsdp_plugin=None,
+        kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)]
+    )
+    args.run.accelerator_mixed_precision = args.run.accelerator.mixed_precision
+    args.run.accelerator_distributed_type =  args.run.accelerator.distributed_type
+    args.run.accelerator_num_processes  =  args.run.accelerator.num_processes
     return args
 
 
