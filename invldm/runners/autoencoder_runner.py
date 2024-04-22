@@ -122,7 +122,6 @@ class AutoencoderRunner(BaseRunner):
 
             # Zero grad and back propagation
             self.d_optimiser.zero_grad()
-            # loss_d.backward()
             self.accelerator.backward(loss_d)
 
             # Update gradients
