@@ -23,6 +23,7 @@ class BaseDataset(Dataset):
 
     def _get_transform(self, **kwargs):
         resize = kwargs.pop("resize", None)
+        antialias = kwargs.pop("antialias", True)
         to_tensor = kwargs.pop("to_tensor", True)
         outliers = kwargs.pop("clip_outliers", False)
         scale = kwargs.pop("scale", [0, 1])
@@ -30,7 +31,7 @@ class BaseDataset(Dataset):
 
         transform_list = []
         if resize:
-            transform_list.append(Resize(resize, antialias=True))
+            transform_list.append(Resize(resize, antialias=antialias))
         if to_tensor:
             transform_list.append(ToTensor())
         if outliers:

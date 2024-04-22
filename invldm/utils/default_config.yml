@@ -1,5 +1,6 @@
 data:
     resize: null
+    antialias: true
     scale: null
     clip_outliers: false
     to_tensor: true
@@ -9,6 +10,7 @@ data:
         mode: null
         path: null    
         resize: null
+        antialias: false
         scale: null
         clip_outliers: false
         to_tensor: true
