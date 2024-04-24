@@ -40,18 +40,24 @@ class AutoencoderRunner(BaseRunner):
         # Get condition from kwargs
         cond = kwargs.pop("condition", None)
 
-        # Forward pass: recon and the statistical posterior
-        recon, mean, log_var = self.model(input, cond)
+        with torch.autocast('cuda' if 'cuda' in str(self.device) else 'cpu'):
+            # Forward pass: recon and the statistical posterior
+            params = next(iter(self.model.parameters()))
+            print(">>>>>>>>>>>>>>", input.dtype, params.dtype, cond.dtype)
+            recon, mean, log_var = self.model(input, cond)
 
-        # Compute training loss
-        loss = self.loss_fn(input, recon, mean, log_var)
+            # Compute training loss
+            loss = self.loss_fn(input, recon, mean, log_var)
 
-        # Discriminator loss (train generator)
-        if self.args.model.adversarial_loss:
-            # Disable grad for discriminator
-            set_requires_grad(self.d_model, requires_grad=False)
-            logits_fake = self.d_model(recon.contiguous())
-            loss += self.d_loss_fn(logits_fake, is_real=True, apply_weight=True) # fool discriminator
+            # Discriminator loss (train generator)
+            if self.args.model.adversarial_loss:
+                # Disable grad for discriminator
+                params = next(iter(self.d_model.parameters()))
+                print(">>>>>>>>>>>>>>", recon.dtype, params.dtype)
+                    
+                set_requires_grad(self.d_model, requires_grad=False)
+                logits_fake = self.d_model(recon.contiguous().to(params.dtype))
+                loss += self.d_loss_fn(logits_fake, is_real=True, apply_weight=True) # fool discriminator
 
         # Zero grad and back propagation
         self.optimiser.zero_grad()

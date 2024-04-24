@@ -46,4 +46,7 @@ class NLayerDiscriminator(nn.Module):
 
     def forward(self, input):
         """Standard forward."""
+
+        params = next(iter(self.model.parameters()))
+        print(">>>>>>>>>>>>>>", input.dtype, params.dtype)
         return self.model(input)

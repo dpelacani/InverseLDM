@@ -34,7 +34,7 @@ autoencoder:
         div_loss: kl
         perceptual_loss: lpips
         adversarial_loss: true
-        # checkpoint: /raid/dp4018/scripts/InverseLDM/exps/conditioned256/cond_vae_trace_pca100_2/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth
+        checkpoint: null
         condition:
             in_channels: 1
             feature_channels: 32
