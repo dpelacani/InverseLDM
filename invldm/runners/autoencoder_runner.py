@@ -42,8 +42,6 @@ class AutoencoderRunner(BaseRunner):
 
         with torch.autocast('cuda' if 'cuda' in str(self.device) else 'cpu'):
             # Forward pass: recon and the statistical posterior
-            params = next(iter(self.model.parameters()))
-            print(">>>>>>>>>>>>>>", input.dtype, params.dtype, cond.dtype)
             recon, mean, log_var = self.model(input, cond)
 
             # Compute training loss
@@ -52,11 +50,12 @@ class AutoencoderRunner(BaseRunner):
             # Discriminator loss (train generator)
             if self.args.model.adversarial_loss:
                 # Disable grad for discriminator
-                params = next(iter(self.d_model.parameters()))
-                print(">>>>>>>>>>>>>>", recon.dtype, params.dtype)
+                # params = next(iter(self.model.parameters()))
+                # d_params = next(iter(self.d_model.parameters()))
+                # print(">>>>>>>>>>>>>>", recon.dtype, params.dtype, d_params.dtype)
                     
                 set_requires_grad(self.d_model, requires_grad=False)
-                logits_fake = self.d_model(recon.contiguous().to(params.dtype))
+                logits_fake = self.d_model(recon)
                 loss += self.d_loss_fn(logits_fake, is_real=True, apply_weight=True) # fool discriminator
 
         # Zero grad and back propagation
@@ -80,13 +79,15 @@ class AutoencoderRunner(BaseRunner):
         if self.args.model.adversarial_loss:
             # Enable grad for discriminator
             set_requires_grad(self.d_model, requires_grad=True)
-            
-            # Get predictions
-            logits_true = self.d_model(input.contiguous())
-            logits_fake = self.d_model(recon.detach().contiguous())
 
-            # Compute loss
-            loss_d = 0.5 * (self.d_loss_fn(logits_fake, is_real=False) + self.d_loss_fn(logits_true, is_real=True))
+            
+            with torch.autocast('cuda' if 'cuda' in str(self.device) else 'cpu'):
+                # Get predictions
+                logits_true = self.d_model(input.contiguous())
+                logits_fake = self.d_model(recon.detach().contiguous())
+
+                # Compute loss
+                loss_d = 0.5 * (self.d_loss_fn(logits_fake, is_real=False) + self.d_loss_fn(logits_true, is_real=True))
 
             # Zero grad and back propagation
             self.d_optimiser.zero_grad()
