@@ -40,11 +40,12 @@ class DiffusionRunner(BaseRunner):
         # Get condition from kwargs
         cond = kwargs.pop("condition", None)
 
-        # Forward pass: predict model noise based on condition
-        noise, noise_pred = self.model(input, cond)
+        with torch.autocast('cuda' if 'cuda' in str(self.device) else 'cpu'):
+            # Forward pass: predict model noise based on condition
+            noise, noise_pred = self.model(input, cond)
 
-        # Compute training loss
-        loss = self.loss_fn(noise, noise_pred)
+            # Compute training loss
+            loss = self.loss_fn(noise, noise_pred)
         
         # Zero grad and back propagation
         self.optimiser.zero_grad()

@@ -36,7 +36,6 @@ class Trainer():
         )
 
         # Model trainers
-        torch.cuda.empty_cache()
         with torch.autocast('cuda' if 'cuda' in str(self.args.run.device) else 'cpu'):
             self.autoencoder = AutoencoderRunner(
                 args=args.autoencoder,

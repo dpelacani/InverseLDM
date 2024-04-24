@@ -177,16 +177,9 @@ class CrossAttention(nn.Module):
         k = self.to_k(cond)
         v = self.to_v(cond)
 
-        # Try to use flash attention for optimised speed and memory, cast to float16 supported by Pytorch
-        try:
-            with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
-                attn_dtype = q.dtype
-                with torch.cuda.amp.autocast():
-                    attn, _ = self.multihead_attention(q, k, v, need_weights=False)
-                    attn = attn.to(attn_dtype)
-        except RuntimeError:
+        # Flash attention implementation from pytorch will not work with autocasting >=(
+        with torch.backends.cuda.sdp_kernel(enable_flash=False, enable_math=True, enable_mem_efficient=True):
             attn, _ = self.multihead_attention(q, k, v, need_weights=False)
-        
         return self.to_out(attn)
 
 
