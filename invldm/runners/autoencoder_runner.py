@@ -25,6 +25,7 @@ class AutoencoderRunner(BaseRunner):
             self.optimiser = _instance_optimiser(self.args, self.model)
             self.lr_scheduler = _instance_lr_scheduler(self.args, self.optimiser)
             self.loss_fn = _instance_autoencoder_loss_fn(self.args)
+            self.scaler = torch.cuda.amp.GradScaler()
 
             # Instantiate optimising objects for adversarial loss
             if self.args.model.adversarial_loss:
@@ -49,26 +50,23 @@ class AutoencoderRunner(BaseRunner):
 
             # Discriminator loss (train generator)
             if self.args.model.adversarial_loss:
-                # Disable grad for discriminator
-                # params = next(iter(self.model.parameters()))
-                # d_params = next(iter(self.d_model.parameters()))
-                # print(">>>>>>>>>>>>>>", recon.dtype, params.dtype, d_params.dtype)
-                    
+                # Disable grad for discriminator                   
                 set_requires_grad(self.d_model, requires_grad=False)
                 logits_fake = self.d_model(recon)
                 loss += self.d_loss_fn(logits_fake, is_real=True, apply_weight=True) # fool discriminator
 
-        # Zero grad and back propagation
+        # Zero grad and back propagation on scaled loss to create scaled gradients
         self.optimiser.zero_grad()
-        loss.backward()
+        self.scaler.scale(loss).backward()
 
-        # Gradient Clipping
+        # Gradient Clipping, unscale the gradients of optimizer's 
         if self.args.optim.grad_clip:
+            self.scaler.unscale_(self.optimser)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                            self.args.optim.grad_clip)
 
-        # Update gradients
-        self.optimiser.step()
+        # Update gradient
+        self.scaler.step(self.optimiser)
 
         # Update lr scheduler
         if self.lr_scheduler:
@@ -91,14 +89,17 @@ class AutoencoderRunner(BaseRunner):
 
             # Zero grad and back propagation
             self.d_optimiser.zero_grad()
-            loss_d.backward()
+            self.scaler.scale(loss_d).backward()
 
             # Update gradients
-            self.d_optimiser.step()
+            self.scaler.step(self.d_optimiser)
 
             # Update lr scheduler
             if self.d_lr_scheduler:
                 self.d_lr_scheduler.step()
+
+        # Update scaler
+        self.scaler.update()
 
         # Output dictionary
         output = {

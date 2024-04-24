@@ -25,6 +25,7 @@ class DiffusionRunner(BaseRunner):
         self.optimiser = _instance_optimiser(self.args, self.model)
         self.lr_scheduler = _instance_lr_scheduler(self.args, self.optimiser)
         self.loss_fn = _instance_diffusion_loss_fn(self.args)
+        self.scaler = torch.cuda.amp.GradScaler()
 
         if self.args.sampling_only:
             self.temperature = self.args.sampling.temperature
@@ -47,21 +48,25 @@ class DiffusionRunner(BaseRunner):
             # Compute training loss
             loss = self.loss_fn(noise, noise_pred)
         
-        # Zero grad and back propagation
+        # Zero grad and back propagation on scaled loss to create scaled gradients
         self.optimiser.zero_grad()
-        loss.backward()
+        self.scaler.scale(loss).backward()
 
-        # Gradient Clipping
+        # Gradient Clipping, unscale the gradients of optimizer's 
         if self.args.optim.grad_clip:
+            self.scaler.unscale_(self.optimser)
             torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                            self.args.optim.grad_clip)
 
-        # Update gradients
-        self.optimiser.step()
+        # Update gradient
+        self.scaler.step(self.optimiser)
 
         # Update lr scheduler
         if self.lr_scheduler:
             self.lr_scheduler.step()
+
+        # Update scaler
+        self.scaler.update()
 
         # Output dictionary update
         output.update({

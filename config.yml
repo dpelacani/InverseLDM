@@ -10,9 +10,9 @@ data:
     to_tensor: false
     normalise: false
     condition:
-        mode: stack-pca-single-128x128
-        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_pca_single/data"    
-        resize: null
+        mode: stack
+        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"    
+        resize: [128, 128]
         scale: [0., 1.]
         clip_outliers: null
         to_tensor: false
@@ -58,7 +58,7 @@ autoencoder:
 
     validation:
         split: 0.2
-        batch_size: 8
+        batch_size: 4
         freq: 150
         save_recon_freq: 500
 
