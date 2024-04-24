@@ -98,7 +98,7 @@ class DiffusionWrapper(nn.Module):
         batch_size = x.shape[0]
 
         # Get random $t$ for each sample in the batch
-        t = torch.randint(0, self.ldm.n_steps, (batch_size,), device=x.device, dtype=torch.long)
+        t = torch.randint(0, self.ldm.n_steps, (batch_size,), device=x.device)
 
         # Encode x to latent 
         z0 = self.ldm.autoencoder_encode(x, condition)
@@ -155,13 +155,13 @@ class LatentDiffusion(nn.Module):
         self.n_steps = n_steps
 
         # $\beta$ schedule
-        beta = torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_steps, dtype=torch.float64, device=self.device) ** 2
-        self.beta = nn.Parameter(beta.to(torch.float32), requires_grad=False)
+        beta = torch.linspace(linear_start ** 0.5, linear_end ** 0.5, n_steps, device=self.device) ** 2
+        self.beta = nn.Parameter(beta, requires_grad=False)
         # $\alpha_t = 1 - \beta_t$
         alpha = 1. - beta
         # $\bar\alpha_t = \prod_{s=1}^t \alpha_s$
         alpha_bar = torch.cumprod(alpha, dim=0)
-        self.alpha_bar = nn.Parameter(alpha_bar.to(torch.float32), requires_grad=False)
+        self.alpha_bar = nn.Parameter(alpha_bar, requires_grad=False)
 
     @property
     def device(self):

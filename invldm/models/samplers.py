@@ -200,7 +200,7 @@ class DDIMSampler(DiffusionSampler):
             # print("alpha_bar[self.time_steps[:-1]]",alpha_bar[self.time_steps[:-1]])
 
             # $\alpha_{\tau_i}$
-            self.ddim_alpha = alpha_bar[self.time_steps].clone().to(torch.float32)
+            self.ddim_alpha = alpha_bar[self.time_steps].clone() #.to(torch.float32)
             # $\sqrt{\alpha_{\tau_i}}$
             self.ddim_alpha_sqrt = torch.sqrt(self.ddim_alpha)
             # $\alpha_{\tau_{i-1}}$

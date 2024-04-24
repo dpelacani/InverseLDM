@@ -178,10 +178,10 @@ class UNetModel(nn.Module):
         half = self.channels // 2
         # $\frac{1}{10000^{\frac{2i}{c}}}$
         frequencies = torch.exp(
-            -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
+            -math.log(max_period) * torch.arange(start=0, end=half) / half
         ).to(device=time_steps.device)
         # $\frac{t}{10000^{\frac{2i}{c}}}$
-        args = time_steps[:, None].float() * frequencies[None]
+        args = time_steps[:, None] * frequencies[None]
         # $\cos\Bigg(\frac{t}{10000^{\frac{2i}{c}}}\Bigg)$ and $\sin\Bigg(\frac{t}{10000^{\frac{2i}{c}}}\Bigg)$
         return torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
 
@@ -378,11 +378,11 @@ class Interpolate(nn.Module):
 
 class GroupNorm32(nn.GroupNorm):
     """
-    ### Group normalization with float32 casting
+    ### Group normalization
     """
 
     def forward(self, x):
-        return super().forward(x.float()).type(x.dtype)
+        return super().forward(x)
 
 
 def normalization(channels):
