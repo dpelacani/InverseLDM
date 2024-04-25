@@ -10,10 +10,13 @@ data:
     to_tensor: false
     normalise: false
     condition:
-        mode: stack
-        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"    
-        resize: [128, 128]
-        scale: [0., 1.]
+        mode: stack-pca-single-128x128
+        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_pca_single/data" 
+        resize: null
+        # mode: stack
+        # path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"    
+        # resize: [128, 128]
+        scale: [0., 2.]
         clip_outliers: null
         to_tensor: false
         normalise: false
@@ -85,7 +88,7 @@ diffusion:
         loss: l2
         condition:
             in_channels: 1
-            feature_channels: 128
+            feature_channels: 64
 
     params:
         beta_start: 0.0015
@@ -99,15 +102,15 @@ diffusion:
         n_epochs: 200
         ckpt_freq: 100
         ckpt_last_only: true
-        sampling_freq: 500
+        sampling_freq: 5000
         sampling_temperature: 0.5
         sampling_skip_steps: 0
 
     validation:
         split: 0.2
-        batch_size: 4
+        batch_size: 2
         freq: 150
-        sampling_freq: 500
+        sampling_freq: 5000
         
     sampling:
         batch_size: 4

@@ -3,3 +3,4 @@ slurm*
 *.ipynb
 **/__pycache__/
 .vscode/
+./config.yml
