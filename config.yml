@@ -1,127 +1,130 @@
 data:
-    dataset: Brain2D
-    data_path: /home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-models/
-    mode: vp
-    maxsamples: null
-    slowness: false
-    resize: [256, 256]
-    scale: [0, 1.]
-    clip_outliers: outer
+  dataset: Brain2D
+  data_path: /home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-models/
+  mode: vp
+  maxsamples: null
+  slowness: false
+  resize: [256, 256]
+  scale: [0, 1.]
+  clip_outliers: outer
+  to_tensor: false
+  normalise: false
+  condition:
+    mode: stack-pca-single-128x128
+    path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack_pca_single/data"
+    resize: null
+    # mode: stack
+    # path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"
+    # resize: [128, 128]
+    scale: [0., 2.]
+    clip_outliers: null
     to_tensor: false
     normalise: false
-    # condition:
-    #     mode: stack
-    #     path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"    
-    #     resize: [128, 128]
-    #     scale: [0., 1.]
-    #     clip_outliers: null
-    #     to_tensor: false
-    #     normalise: false
 
 logging:
-    tool: JSON
+  tool: JSON
 
 autoencoder:
-    model:
-        in_channels: 1
-        out_channels: 1
-        feature_channels: 64
-        z_channels : 3
-        embbeded_channels : 1
-        channels_mult: [1, 2, 2]
-        num_res_blocks: 2
-        recon_loss: l2
-        div_loss: kl
-        perceptual_loss: lpips
-        adversarial_loss: true
-        checkpoint: /home/dp4018/scripts/InverseLDM/exps/unconditioned256/uncond256_0/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth
-        condition:
-            in_channels: 1
-            feature_channels: 32
-    params:
-        div_weight: 0.00001
-        perceptual_weight: 1.0
-        recon_weight: 1.
-        adversarial_weight: 0.1
-        lpips_model: alex
-        disc_n_layers: 2
-        disc_feature_channels: 32
-        adversarial_mode: lsgan
-        
-    training:
-        batch_size: 8
-        n_epochs: 300
-        save_recon_freq: 500
-        ckpt_freq: 500
-        ckpt_last_only: true
-        sampling_freq: 0
+  model:
+    in_channels: 1
+    out_channels: 1
+    feature_channels: 64
+    z_channels: 3
+    embbeded_channels: 1
+    channels_mult: [1, 2, 2]
+    num_res_blocks: 2
+    recon_loss: l2
+    div_loss: kl
+    perceptual_loss: lpips
+    adversarial_loss: true
+    checkpoint: /home/dp4018/scripts/InverseLDM/exps/unconditioned256/uncond256_0/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth
+    condition:
+      in_channels: 1
+      feature_channels: 32
+  params:
+    div_weight: 0.00001
+    perceptual_weight: 1.0
+    recon_weight: 1.
+    adversarial_weight: 0.1
+    lpips_model: alex
+    disc_n_layers: 2
+    disc_feature_channels: 32
+    adversarial_mode: lsgan
 
-    validation:
-        split: 0.2
-        batch_size: 4
-        freq: 150
-        save_recon_freq: 500
+  training:
+    batch_size: 8
+    n_epochs: 300
+    save_recon_freq: 500
+    ckpt_freq: 500
+    ckpt_last_only: true
+    sampling_freq: 0
 
-    optim:
-        weight_decay: 0.00
-        optimiser: "Adam"
-        lr: 0.0001
-        beta1: 0.9
-        amsgrad: false
-        eps: 0.00000001
-        grad_clip: null
-        
-        lr_scheduler:
-            scheduler: null
+  validation:
+    split: 0.2
+    batch_size: 4
+    freq: 150
+    save_recon_freq: 500
+
+  optim:
+    weight_decay: 0.00
+    optimiser: "Adam"
+    lr: 0.0001
+    beta1: 0.9
+    amsgrad: false
+    eps: 0.00000001
+    grad_clip: null
+
+    lr_scheduler:
+      scheduler: null
 
 diffusion:
-    model:
-        feature_channels: 128 
-        channels_mult: [1, 2, 3]
-        num_res_blocks: 2
-        attention: [0, 1, 2]
-        num_transformer_layers: 4
-        num_attn_heads: 1
-        loss: l2
-        condition:
-            in_channels: 1
-            feature_channels: 128
+  model:
+    feature_channels: 128
+    channels_mult: [1, 2, 3]
+    num_res_blocks: 2
+    attention: [0, 1, 2]
+    num_transformer_layers: 4
+    num_attn_heads: 1
+    loss: l2
+    condition:
+      in_channels: 1
+      feature_channels: 64
 
-    params:
-        beta_start: 0.0015
-        beta_end: 0.0205
-        num_diffusion_timesteps: 1000
-        latent_scaling_factor: 1.
-        sampler : ddim
+  params:
+    beta_start: 0.0015
+    beta_end: 0.0205
+    num_diffusion_timesteps: 1000
+    latent_scaling_factor: 1.
+    sampler: ddim
 
-    training:
-        batch_size: 4
-        n_epochs: 200
-        ckpt_freq: 100
-        ckpt_last_only: true
-        sampling_freq: 1000
-        sampling_temperature: 0.5
-        sampling_skip_steps: 0
+  training:
+    batch_size: 4
+    n_epochs: 200
+    ckpt_freq: 100
+    ckpt_last_only: true
+    sampling_freq: 5000
+    sampling_temperature: 0.5
+    sampling_skip_steps: 0
 
-    validation:
-        split: 0.
-        batch_size: 4
-        freq: 150
-        sampling_freq: 500
-        
-    sampling:
-        batch_size: 4
-        output: last_only
-        n_samples: 10
+  validation:
+    split: 0.2
+    batch_size: 2
+    freq: 150
+    sampling_freq: 5000
 
-    optim:
-        weight_decay: 0.0001
-        optimiser: "Adam"
-        lr: 0.00002
-        beta1: 0.9
-        amsgrad: false
-        eps: 0.00000001
-        grad_clip: null
+  sampling:
+    batch_size: 4
+    output: last_only
+    n_samples: 10
 
-        lr_scheduler:
-            scheduler: null
+  optim:
+    weight_decay: 0.0001
+    optimiser: "Adam"
+    lr: 0.00002
+    beta1: 0.9
+    amsgrad: false
+    eps: 0.00000001
+    grad_clip: null
+
+    lr_scheduler:
+      scheduler: null

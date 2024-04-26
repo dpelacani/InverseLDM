@@ -38,12 +38,11 @@ class Brain2DDataset(BaseDataset):
         prefix = "m" if self.mode == "mri" else "vp"
         suffix = (".npy", ".npy.gz")
 
-        # Loop through folders and subfolders
-        for subdir, _, files in os.walk(path):
-            for filename in files:
-                if filename.lower().startswith(prefix) and \
-                   filename.lower().endswith(suffix):
-                    self.data_paths.append(os.path.join(subdir, filename))
+        # Loop through folder
+        for filename in os.listdir(path):
+            if filename.lower().startswith(prefix) and \
+                filename.lower().endswith(suffix):
+                self.data_paths.append(os.path.join(path, filename))
         self.data_paths = self.data_paths[:maxsamples]
         assert len(self.data_paths) > 0, f" Found no data samples to load in {path} with prefix {prefix} and suffixes {suffix}"
         return None
