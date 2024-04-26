@@ -4,19 +4,19 @@ data:
     mode: vp
     maxsamples: null
     slowness: false
-    resize: [128, 128]
+    resize: [256, 256]
     scale: [0, 1.]
     clip_outliers: outer
     to_tensor: false
     normalise: false
-    condition:
-        mode: stack
-        path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"    
-        resize: [128, 128]
-        scale: [0., 1.]
-        clip_outliers: null
-        to_tensor: false
-        normalise: false
+    # condition:
+    #     mode: stack
+    #     path: "/home/dp4018/data/ultrasound-data/Ultrasound-Vp-sagittal-data/acoustic/data/stack/"    
+    #     resize: [128, 128]
+    #     scale: [0., 1.]
+    #     clip_outliers: null
+    #     to_tensor: false
+    #     normalise: false
 
 logging:
     tool: JSON
@@ -34,7 +34,7 @@ autoencoder:
         div_loss: kl
         perceptual_loss: lpips
         adversarial_loss: true
-        # checkpoint: /raid/dp4018/scripts/InverseLDM/exps/conditioned256/cond_vae_trace_pca100_2/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth
+        checkpoint: /home/dp4018/scripts/InverseLDM/exps/unconditioned256/uncond256_0/logs/autoencoder/checkpoints/autoencoder_ckpt_latest.pth
         condition:
             in_channels: 1
             feature_channels: 32
@@ -80,7 +80,7 @@ diffusion:
         channels_mult: [1, 2, 3]
         num_res_blocks: 2
         attention: [0, 1, 2]
-        num_transformer_layers: 2
+        num_transformer_layers: 4
         num_attn_heads: 1
         loss: l2
         condition:
@@ -99,12 +99,12 @@ diffusion:
         n_epochs: 200
         ckpt_freq: 100
         ckpt_last_only: true
-        sampling_freq: 500
+        sampling_freq: 1000
         sampling_temperature: 0.5
         sampling_skip_steps: 0
 
     validation:
-        split: 0.2
+        split: 0.
         batch_size: 4
         freq: 150
         sampling_freq: 500
