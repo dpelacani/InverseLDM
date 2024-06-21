@@ -188,17 +188,6 @@ class DDIMSampler(DiffusionSampler):
             # Get ${\color{lightgreen}\bar\alpha_t}$
             alpha_bar = self.model.alpha_bar
 
-            # print(self.time_steps==np.array([i for i in range(1, 1001)]))
-            # print("type(alpha_bar)",type(alpha_bar))
-            # print("type(self.time_steps)",type(self.time_steps), self.time_steps.shape)
-            # print("len(alpha_bar)",len(alpha_bar))
-            # print("self.time_steps[:-1],max(self.time_steps[:-1])",self.time_steps[:-1], max(self.time_steps[:-1]))
-            # print("alpha_bar[0]",alpha_bar[0])
-            # print("alpha_bar[999]",alpha_bar[999])
-            # print("alpha_bar[[i for i in range(1, 1001)]]",alpha_bar[np.array([i for i in range(1, 1001)])])
-            # print("alpha_bar[self.time_steps]",alpha_bar[list(self.time_steps)])
-            # print("alpha_bar[self.time_steps[:-1]]",alpha_bar[self.time_steps[:-1]])
-
             # $\alpha_{\tau_i}$
             self.ddim_alpha = alpha_bar[self.time_steps].clone().to(torch.float32)
             # $\sqrt{\alpha_{\tau_i}}$
