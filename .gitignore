@@ -4,3 +4,4 @@ slurm*
 **/__pycache__/
 .vscode/
 *.yml
+nohup.out
