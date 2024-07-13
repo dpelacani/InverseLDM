@@ -46,6 +46,11 @@ class DiffusionRunner(BaseRunner):
         # Conditioner network
         if self.args.model.condition.mode is not None:
             assert "c" in locals(), (" Condition mode is passed but Dataset does not return condition. Ensure chosen Dataset class returns a tuple with condition as second element. ")
+            
+            # Whether classifier free guidance is enabled
+            self.cfg = self.args.model.condition.cf_cond_probability is not None
+            
+            # If conditioner is required
             has_blocks = self.args.model.condition.num_res_blocks > 0 if self.args.model.condition.spatial_dims > 1 else self.args.model.condition.num_blocks > 0
             if has_blocks:
                 if self.args.model.condition.spatial_dims > 1:
@@ -136,17 +141,24 @@ class DiffusionRunner(BaseRunner):
         with torch.amp.autocast(str(self.device)):
             z_mu, z_sigma = self.autoencoder.encode(input)
             z = self.autoencoder.sampling(z_mu, z_sigma)
-            noise = torch.randn_like(z).to(self.device)
+            noise = torch.randn_like(z).to(self.device)            
             
-            # Project and reshape condition
+            # Embed and reshape condition
             cond_mode = self.args.model.condition.mode
-            if cond is not None and cond_mode is not None:     
+            if cond is not None and cond_mode is not None:  
                 cond = self.cond_proj(cond)
                 
-                if cond_mode in ["concat", "addition"]:
-                    cond = torch.nn.functional.interpolate(cond, z.shape[2:], mode=self.args.model.condition.resize_mode, antialias=True)
-                elif cond_mode == "crossattn":
-                    cond = cond.flatten(start_dim=2)
+                # If classifier not enabled OR (is enabled and meets probability)
+                if (not self.cfg) or (self.cfg and torch.rand(1).item() > 1 - self.args.model.condition.cf_cond_probability): 
+                    if cond_mode in ["concat", "addition"]:
+                        cond = torch.nn.functional.interpolate(cond, noise.shape[2:], mode=self.args.model.condition.resize_mode, antialias=True)
+                    elif cond_mode == "crossattn":
+                        cond = cond.flatten(start_dim=2)
+                else: 
+                    if cond_mode in ["concat", "addition"]:
+                        raise AttributeError ("Classifier free guidance can only be used with condition mode 'crossattn'")
+                    elif cond_mode == "crossattn":
+                        cond = noise.flatten(start_dim=2)
                     
 
             timesteps = torch.randint(0, self.inferer.scheduler.num_train_timesteps, (z.shape[0],), device=z.device).long()
@@ -194,7 +206,7 @@ class DiffusionRunner(BaseRunner):
             z = self.autoencoder.sampling(z_mu, z_sigma)
             noise = torch.randn_like(z).to(self.device)
             
-            # Project and reshape condition
+            # Embed and reshape condition
             cond_mode = self.args.model.condition.mode
             if cond is not None and cond_mode is not None:             
                 cond = self.cond_proj(cond)
@@ -239,7 +251,7 @@ class DiffusionRunner(BaseRunner):
         z_ = self.autoencoder.sampling(z_mu, z_sigma)
         z = torch.randn_like(z_).to(self.device)
             
-        # Project and reshape condition
+        # Embed and reshape condition
         cond_mode = self.args.model.condition.mode
         if cond is not None and cond_mode is not None:             
             cond = self.cond_proj(cond)
